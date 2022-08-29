@@ -15,6 +15,7 @@ from modules.database.ConnectingPool import getConnectionPool
 config_filepath = '../../config.yaml'
 load_covid_detection_sql_dir = 'load_covid_detection_sql/'
 load_whitelist_sql_dir = 'load_whitelist_sql/'
+analyze_data_sql_dir = 'analyze_data_sql/'
 
 
 def clean_data(x):
@@ -195,6 +196,30 @@ def load_covid_detection(covid_detection_input_filepath):
     print('load data into database finished! time=', time.time() - start_time)
 
 
+def analyze_data():
+    start_time = time.time()
+    print('start analyze newly imported data...')
+
+    # obtain a connection pool
+    connectionPool = getConnectionPool()
+    conn = None
+    cursor = None
+
+    # compute latest sample time into whitelist
+    compute_latest_sample_sql = open(analyze_data_sql_dir + 'compute_latest_sample.sql', encoding='utf8').read() + '\n'
+    try:
+        conn = connectionPool.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(compute_latest_sample_sql)
+        conn.commit()
+    except Exception as e:
+        print(e)
+    finally:
+        cursor.close()
+        conn.close()
+    print('compute latest sampling time finished! time=', time.time()-start_time)
+
+
 if __name__ == '__main__':
     whitelist_filepath = 'whitelist.xlsx'
     load_whitelist(whitelist_filepath)
@@ -202,4 +227,7 @@ if __name__ == '__main__':
 
     covid_detection_filepath = 'covid_detection.xlsx'
     load_covid_detection(covid_detection_filepath)
-    print('load covid detection finished!')
+    print('load covid detection finished!\n')
+
+    analyze_data()
+    print('analyze newly imported data finished!')

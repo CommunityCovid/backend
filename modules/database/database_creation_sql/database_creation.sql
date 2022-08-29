@@ -35,6 +35,7 @@ CREATE TABLE residents (
     `上报类型` VARCHAR(20),
     `是否在白名单` VARCHAR(2) DEFAULT '是',
     `是否在黑名单` VARCHAR(2) DEFAULT '否',
+    `上次核酸检测时间` DATE DEFAULT NULL,
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`)
 ) DEFAULT CHARSET=utf8;

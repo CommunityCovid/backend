@@ -1,0 +1,13 @@
+# database configuration: modify this in exact host
+database:
+      host: 10.20.4.104
+      user: root
+      password: root
+      database: langxin_community
+      secure_file_priv: /var/lib/mysql-files
+      pool_size: 10
+
+# system configuration: modify this in the exact host
+system:
+      user: dbgroup
+      password: dbgroupDBGROUP1314

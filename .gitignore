@@ -1,0 +1,7 @@
+# jetbrain temp files
+__pycache__/
+.idea/
+
+# omitted file formats
+*.xlsx
+*.csv

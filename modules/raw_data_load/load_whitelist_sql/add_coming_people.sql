@@ -6,9 +6,11 @@ select nr.`街道`,nr.`社区`,nr.`网格`,nr.`所居住花园小区/城中村�
        nr.`证件类型`,nr.`证件号码`,nr.`出生年月`,nr.`手机号码`,nr.`国籍`,nr.`是否暂离`,nr.`户籍地址`,nr.`工作单位所在市`,
        nr.`工作单位所在行政区`,nr.`工作单位名称`,nr.`工作单位地址`,nr.`是否纳入市网格办统计`,nr.`楼栋地址`,nr.`楼栋编码`,nr.`房屋地址`,
        nr.`房屋编码`,nr.`备注`,nr.`审核结果`,nr.`审核人`,nr.`审核时间`,nr.`上报类型`
-from langxin_community.residents r right join
-    langxin_community.new_residents nr
+from
+    (select * from langxin_community.residents where 是否在白名单 = '是') r
+    right join langxin_community.new_residents nr
 on
-    r.证件号码 = nr.证件号码
+    r.证件号码 = nr.证件号码 and
+    r.房屋编码 = nr.房屋编码
 where
     r.证件号码 is null;

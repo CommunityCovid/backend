@@ -35,7 +35,7 @@ CREATE TABLE residents (
     `上报类型` VARCHAR(20),
     `是否在白名单` VARCHAR(2) DEFAULT '是',
     `是否在黑名单` VARCHAR(2) DEFAULT '否',
-    `上次核酸检测时间` DATE DEFAULT NULL,
+    `上次核酸检测时间` DATETIME,
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`)
 ) DEFAULT CHARSET=utf8;
@@ -79,6 +79,5 @@ CREATE TABLE covid_detection_records (
     `创建人姓名` VARCHAR(40),
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`),
-    INDEX idx_sample_time(`采样时间`),
-    INDEX idx_detection_result_time(`检测结果填报时间`)
+    INDEX idx_sample_time(`采样时间`)
 ) DEFAULT CHARSET=utf8;

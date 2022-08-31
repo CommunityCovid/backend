@@ -182,8 +182,11 @@ def load_covid_detection(covid_detection_input_filepath):
         cursor.execute(create_temporary_table_sql)
         cursor.execute(load_to_temporary_table_sql)
         print('load data into temporary table finished! time=', time.time() - start_time)
-        cursor.execute(update_modified_records_sql)
-        print('update modified records finished! time=', time.time() - start_time)
+
+        # no need to update records, just record the sample time
+        # cursor.execute(update_modified_records_sql)
+        # print('update modified records finished! time=', time.time() - start_time)
+
         cursor.execute(add_new_records_sql)
         print('add new records finished! time=', time.time() - start_time)
         # cursor.execute(drop_table_sql)

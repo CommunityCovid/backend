@@ -35,6 +35,8 @@ CREATE TABLE residents (
     `上报类型` VARCHAR(20),
     `是否在白名单` VARCHAR(2) DEFAULT '是',
     `是否在灰名单` VARCHAR(2) DEFAULT '否',
+    `灰名单类型` INT,
+    `灰名单原因` VARCHAR(100),
     `上次核酸检测时间` DATETIME,
     `移出白名单时间` DATETIME,
     PRIMARY KEY (`id`),

@@ -1,4 +1,7 @@
+import datetime
 import logging
+import re
+import string
 
 import matplotlib.pyplot as plt
 from flask_cors import CORS
@@ -55,10 +58,13 @@ def get_community_cnt():
 @app.route('/api/getGridsCnt', methods=['POST', 'GET'])
 def get_grids_cnt():
     params = request.json
-    # date = params["date"]
-    date = ""
-    grids_total_cnt = get_grid_whitelist(db, date)
-    grid_finish_cnt = get_grid_finished(db, date)
+    date = params["date"]
+    record_limit = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    print(date_tmp, date_next)
+    grids_total_cnt = get_grid_whitelist(db, date_tmp)
+    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next)
 
     grid_info_map = {}
     for item in grids_total_cnt:
@@ -74,11 +80,10 @@ def get_grids_cnt():
 
 @app.route('/api/getCommunityPeople', methods=['POST', 'GET'])
 def get_whitelist():
-    whitelist = db_server.get_whitelist()
-    df_values = whitelist.values
+    whitelist = get_whitelist()
     values = []
-    for item in df_values:
-        values.append([i for i in item])
+    for item in whitelist:
+        values.append([item[key] for key in residents_columns])
     return jsonify({"columns": residents_columns, "people": values}, 200, {"Content-Type": "application/json"})
 
 
@@ -86,12 +91,10 @@ def get_whitelist():
 def get_grid_people():
     params = request.json
     grid = params["grid"]
-
-    whitelist = db_server.get_grid_whitelist_people(grid)
-    df_values = whitelist.values
+    whitelist = get_grid_whitelist_people(db, grid)
     values = []
-    for item in df_values:
-        values.append([i for i in item])
+    for item in whitelist:
+        values.append([item[key] for key in residents_columns])
     return jsonify({"columns": residents_columns, "people": values}, 200, {"Content-Type": "application/json"})
 
 
@@ -108,10 +111,57 @@ def upload_file():
 @app.route('/api/getRecords', methods=['POST', 'GET'])
 def get_records():
     params = request.json
-    # grid = params["date"]
-    data = get_records_position(db)
-    print(data[0])
-    return jsonify({}, 200, {"Content-Type": "application/json"})
+    date = params["date"]
+    limit_record = params["recordLimit"]
+
+    print(date)
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    print(date_tmp, date_next)
+    data = get_records_position(db, date_tmp, date_next)
+    position = []
+    timesMap = {}
+    for item in data:
+        p = item["采样地点"]
+        p = p.strip(string.ascii_uppercase).strip(string.digits)
+        p = p.strip("浪心")
+        # p = p.strip(string.digits)
+        if p not in timesMap:
+            timesMap[p] = []
+            position.append(p)
+        timesMap[p].append(int(item["采样时间"].hour))
+    res = {}
+    position.sort()
+    for p in position:
+        times = timesMap[p]
+        res[p] = {}
+        for i in range(24):
+            res[p][i] = 0
+        for t in times:
+            res[p][t - 1] += 1
+    return jsonify({"heatMap": res, "position": position}, 200, {"Content-Type": "application/json"})
+
+
+@app.route('/api/getGridsTimeInfo', methods=['POST', 'GET'])
+def get_grids_time_info():
+    params = request.json
+    date = params["date"]
+    limit_record = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    record_limit = date_tmp - datetime.timedelta(days=limit_record)
+    data = get_grids_record_time(db, record_limit)
+    times_map = {}
+    positions = []
+    for item in data:
+        p = item["网格"]
+        if p not in times_map:
+            times_map[p] = [0 for _ in range(24)]
+            positions.append(p)
+        time_hour = int(item["上次核酸检测时间"].hour)
+        times_map[p][time_hour - 1] += 1
+    positions.sort()
+    return jsonify({"recordsTime": times_map, "positions": positions}, 200, {"Content-Type": "application/json"})
 
 
 def main():

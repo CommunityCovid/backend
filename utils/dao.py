@@ -48,6 +48,12 @@ def get_whitelist(db):
     return sql_query(sql, cur)
 
 
+def get_grey_list(db):
+    cur = db.connection.cursor()
+    sql = "select * from residents where 是否在白名单='是' and 是否在灰名单='是';"
+    return sql_query(sql, cur)
+
+
 def get_grid_whitelist_people(db, grid):
     cur = db.connection.cursor()
     sql = f"select * from residents r where r.网格 = '{grid}';"

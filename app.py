@@ -78,11 +78,45 @@ def get_grids_cnt():
     return jsonify(grid_info_map, 200, {"Content-Type": "application/json"})
 
 
+@app.route('/api/getGridCnt', methods=['POST', 'GET'])
+def get_grid_cnt():
+    params = request.json
+    date = params["date"]
+    record_limit = params["recordLimit"]  # todo
+    grid_name = params["grid"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    grids_total_cnt = get_grid_whitelist(db, date_tmp)
+    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next)
+
+    total_cnt, finished_cnt = 0, 0
+
+    for item in grids_total_cnt:
+        if item["网格"] == grid_name:
+            total_cnt = item["cnt"]
+            break
+    for item in grid_finish_cnt:
+        if item["网格"] == grid_name:
+            finished_cnt = item["cnt"]
+            break
+
+    return jsonify({"totalCnt": total_cnt, "finishedCnt": finished_cnt}, 200, {"Content-Type": "application/json"})
+
+
 @app.route('/api/getCommunityPeople', methods=['POST', 'GET'])
 def get_whitelist():
     whitelist = get_whitelist()
     values = []
     for item in whitelist:
+        values.append([item[key] for key in residents_columns])
+    return jsonify({"columns": residents_columns, "people": values}, 200, {"Content-Type": "application/json"})
+
+
+@app.route('/api/getGreyListPeople', methods=['POST', 'GET'])
+def get_grey_list_people():
+    grey_list = get_grey_list(db=db)
+    values = []
+    for item in grey_list:
         values.append([item[key] for key in residents_columns])
     return jsonify({"columns": residents_columns, "people": values}, 200, {"Content-Type": "application/json"})
 

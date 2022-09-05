@@ -45,10 +45,15 @@ db = MySQL(app)
 @app.route('/api/getCommunityCnt', methods=['POST', 'GET'])
 def get_community_cnt():
     params = request.json
-    # date = params['date']
+    date = params['date']
+    record_limit = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    date_record = date_tmp - datetime.timedelta(days=record_limit)
 
-    total_cnt = get_whitelist_num(db)
-    finished_cnt = get_finished_num(db)
+    total_cnt = get_whitelist_num(db, date, date_next)
+    finished_cnt = get_finished_num(db, date, date_next, date_record)
+
     return jsonify(
         {"totalCount": int(total_cnt),
          "finishedCnt": int(finished_cnt)
@@ -62,14 +67,15 @@ def get_grids_cnt():
     record_limit = params["recordLimit"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
-    print(date_tmp, date_next)
+    date_record = date_tmp - datetime.timedelta(days=record_limit)
     grids_total_cnt = get_grid_whitelist(db, date_tmp)
-    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next)
+    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next, date_record)
 
     grid_info_map = {}
     for item in grids_total_cnt:
         grid_info_map.update({
-            item["网格"]: {"totalCnt": item["cnt"]}
+            item["网格"]: {"totalCnt": item["cnt"],
+                         "finishedCnt": 0}
         })
     for item in grid_finish_cnt:
         grid_info_map[item["网格"]].update({
@@ -86,8 +92,9 @@ def get_grid_cnt():
     grid_name = params["grid"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
+    date_record = date_tmp - datetime.timedelta(days=int(record_limit))
     grids_total_cnt = get_grid_whitelist(db, date_tmp)
-    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next)
+    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next, date_record)
 
     total_cnt, finished_cnt = 0, 0
 
@@ -146,12 +153,8 @@ def upload_file():
 def get_records():
     params = request.json
     date = params["date"]
-    limit_record = params["recordLimit"]
-
-    print(date)
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
-    print(date_tmp, date_next)
     data = get_records_position(db, date_tmp, date_next)
     position = []
     timesMap = {}
@@ -194,6 +197,11 @@ def get_grids_time_info():
             positions.append(p)
         time_hour = int(item["上次核酸检测时间"].hour)
         times_map[p][time_hour - 1] += 1
+    if len(positions) == 0:
+        grids = get_grids(db, date_tmp)
+        for g in grids:
+            positions.append(g["网格"])
+            times_map[g["网格"]] = [0 for _ in range(24)]
     positions.sort()
     return jsonify({"recordsTime": times_map, "positions": positions}, 200, {"Content-Type": "application/json"})
 

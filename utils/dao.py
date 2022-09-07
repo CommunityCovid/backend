@@ -39,6 +39,12 @@ def get_grids(db, date):
     sql = "select distinct(r.网格) from residents r order by r.网格;"
     return sql_query(sql, cur)
 
+def get_community_whitelist(db, date):
+    cur = db.connection.cursor()
+    sql = "select r.小区, count(*) cnt from residents r " \
+          "where r.小区 is not null " \
+          "group by r.小区"
+    return sql_query(sql, cur)
 
 def get_grid_finished(db, date, date_plus1, date_record):
     cur = db.connection.cursor()
@@ -88,6 +94,16 @@ def get_grids_record_time(db, limit_date):
     sql = "select r.网格, r.上次核酸检测时间 from residents r " \
           "where r.是否在白名单 = '是' " \
           f"and (r.上次核酸检测时间 is not null and r.上次核酸检测时间 > '{limit_date}');"
+    return sql_query(sql, cur)
+
+
+def get_community_record_time(db, limit_date):
+    cur = db.connection.cursor()
+    sql = "select r.小区, r.上次核酸检测时间 from residents r " \
+          "where r.是否在白名单 = '是' " \
+          "and r.小区 is not null " \
+          "and r.上次核酸检测时间 is not null " \
+          f"and r.上次核酸检测时间 > '{limit_date}'"
     return sql_query(sql, cur)
 
 

@@ -88,7 +88,7 @@ def get_grids_cnt():
 def get_grid_cnt():
     params = request.json
     date = params["date"]
-    record_limit = params["recordLimit"]  # todo
+    record_limit = params["recordLimit"]
     grid_name = params["grid"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
@@ -204,6 +204,53 @@ def get_grids_time_info():
             times_map[g["网格"]] = [0 for _ in range(24)]
     positions.sort()
     return jsonify({"recordsTime": times_map, "positions": positions}, 200, {"Content-Type": "application/json"})
+
+
+@app.route('/api/getExportReport', methods=['POST', 'GET'])
+def get_export_report():
+    params = request.json
+    date = params["date"]
+
+    parsed_date = datetime.datetime.strptime(date, '%Y-%m-%d')
+
+    grids_total_cnt = get_grid_whitelist(db, parsed_date)
+
+    data = get_grids_record_time(db, parsed_date)
+    times_map = {}
+    positions = []
+    for item in data:
+        p = item["网格"]
+        if p not in times_map:
+            times_map[p] = [0 for _ in range(24)]
+            positions.append(p)
+        time_hour = int(item["上次核酸检测时间"].hour)
+        times_map[p][time_hour - 1] += 1
+    positions.sort()
+
+    report = pd.DataFrame(columns=["网格", "网格员", "应采样", "完成率",
+                                   "1时", "2时", "3时", "4时", "5时", "6时", "7时", "8时",
+                                   "9时", "10时", "11时", "12时", "13时", "14时", "15时", "16时",
+                                   "17时", "18时", "19时", "20时", "21时", "22时", "23时", "24时", ],
+                          index=[])
+    for index, grid in enumerate(positions):
+        data = times_map[grid]
+
+        total_cnt, finished_cnt = 0, sum(data)
+        for item in grids_total_cnt:
+            if item["网格"] == grid:
+                total_cnt = item["cnt"]
+                break
+        rate = f"{round(finished_cnt / total_cnt * 100, 2)}%"
+
+        report.loc[index] = [grid, grid, total_cnt, rate] + data
+
+    writer = pd.ExcelWriter(f'reports/{date}浪心社区网格统计情况.xlsx')
+    report.to_excel(writer, startcol=0, startrow=0, index=False)
+    # worksheet = writer.sheets['Sheet1']
+    # worksheet.write_string(0, 0, f'{date}浪心社区网格统计情况')
+    writer.save()
+
+    return jsonify(1, 200, {"Content-Type": "application/json"})
 
 
 def main():

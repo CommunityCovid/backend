@@ -17,6 +17,7 @@ load_covid_detection_sql_dir = 'load_covid_detection_sql/'
 load_whitelist_sql_dir = 'load_whitelist_sql/'
 load_gray_list_sql_dir = 'load_gray_list_sql/'
 load_return_list_sql_dir = 'load_return_list_sql/'
+load_grid_administrator_dir = 'load_grid_administrator_sql/'
 analyze_data_sql_dir = 'analyze_data_sql/'
 
 
@@ -115,6 +116,7 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
         print('remove left people finished! time=', time.time() - start_time)
         cursor.execute(add_coming_people_sql)
         print('add newly coming people finished! time=', time.time() - start_time)
+        cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
         print(e)
@@ -245,6 +247,7 @@ def load_gray_list(gray_list_input_filepath):
         cursor.execute(add_gray_list_not_related2age_sql)
         cursor.execute(add_gray_list_related2age_sql)
         print('update gray list finished! time=', time.time() - start_time)
+        cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
         print(e)
@@ -323,7 +326,7 @@ def load_covid_detection(covid_detection_input_filepath):
 
         cursor.execute(add_new_records_sql)
         print('add new records finished! time=', time.time() - start_time)
-        # cursor.execute(drop_table_sql)
+        cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
         print(e)
@@ -369,8 +372,8 @@ def load_return_list(return_list_input_filepath, return_list_date):
     subp.communicate(sudo_password)
     print('move csv finished! time=', time.time() - start_time)
 
-    # 1. load covid detection records in csv file into a temporary table in database
-    # 2. merge records in temporary table into main covid detection records table
+    # 1. load return list in csv file into a temporary table in database
+    # 2. add returned records to main covid detection records table
     drop_table_sql = open(load_return_list_sql_dir + 'drop_temporary_table.sql', encoding='utf8').read() + '\n'
     create_temporary_table_sql = open(load_return_list_sql_dir + 'create_temporary_table.sql',
                                       encoding='utf8').read() + '\n'
@@ -394,6 +397,55 @@ def load_return_list(return_list_input_filepath, return_list_date):
         print('load data into temporary table finished! time=', time.time() - start_time)
         cursor.execute(add_return_list_sql)
         print('add return list to covid detection records finished! time=', time.time() - start_time)
+        cursor.execute(drop_table_sql)
+        conn.commit()
+    except Exception as e:
+        print(e)
+    finally:
+        cursor.close()
+        conn.close()
+    print('load data into database finished! time=', time.time() - start_time)
+
+
+def load_grid_administrator(grid_administrator_input_filepath):
+    start_time = time.time()
+    print('start load grid administrator...')
+    # obtain a connection pool
+    connectionPool = getConnectionPool()
+    conn = None
+    cursor = None
+
+    # load initial data
+    grid_administrator = pd.read_excel(grid_administrator_input_filepath, header=0)
+    print('load raw return finished! time=', time.time() - start_time)
+
+    # clean data
+    grid_administrator = grid_administrator.apply(np.vectorize(clean_data))
+    print('clean data finished! time=', time.time() - start_time)
+
+    # cat grid administrators info pairs
+    values_str = ' '
+    for i in range(grid_administrator.shape[0]):
+        values_str += "('{}', '{}'), ".format(grid_administrator['网格号'][i], grid_administrator['姓名'][i])
+    values_str = values_str.strip(', ')
+
+    # place grid administrators info into sql and execute straightly
+    drop_table_sql = open(load_grid_administrator_dir + 'drop_table.sql', encoding='utf8').read() + '\n'
+    create_table_sql = open(load_grid_administrator_dir + 'create_table.sql', encoding='utf8').read() + '\n'
+    add_grid_administrators_sql = open(load_grid_administrator_dir + 'add_grid_administrators.sql',
+                                       encoding='utf8').read().replace('{values}', values_str) + '\n'
+
+    connectionPool = getConnectionPool()
+    conn = None
+    cursor = None
+
+    try:
+        conn = connectionPool.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(drop_table_sql)
+        cursor.execute(create_table_sql)
+        cursor.execute(add_grid_administrators_sql)
+        print('load grid administrators info finished! time=', time.time() - start_time)
         conn.commit()
     except Exception as e:
         print(e)
@@ -412,19 +464,28 @@ def analyze_data():
     conn = None
     cursor = None
 
-    # compute latest sample time into whitelist
+    # 1. compute latest sample time into whitelist
     compute_latest_sample_sql = open(analyze_data_sql_dir + 'compute_latest_sample.sql', encoding='utf8').read() + '\n'
+    # 2. update cell
+    split_cell_SQLs = open(analyze_data_sql_dir + 'split_cell.sql', encoding='utf8').read().split('&')
+
     try:
         conn = connectionPool.get_connection()
         cursor = conn.cursor()
         cursor.execute(compute_latest_sample_sql)
+        print('compute latest sampling time finished! time=', time.time() - start_time)
+
+        for i in range(1, len(split_cell_SQLs)):
+            cursor.execute(split_cell_SQLs[i].split(';')[0] + ';\n')
+        print('split cell finished! time=', time.time() - start_time)
         conn.commit()
     except Exception as e:
         print(e)
     finally:
         cursor.close()
         conn.close()
-    print('compute latest sampling time finished! time=', time.time() - start_time)
+
+    print('analyze data finished! time=', time.time() - start_time)
 
 
 if __name__ == '__main__':
@@ -441,9 +502,13 @@ if __name__ == '__main__':
     # load_gray_list(gray_list_filepath)
     # print('load gray list finished!')
 
-    return_list_filepath = 'return_list.xlsx'
-    load_return_list(return_list_filepath, '2022-08-25')
-    print('load return list finished!')
+    # return_list_filepath = 'return_list.xlsx'
+    # load_return_list(return_list_filepath, '2022-08-25')
+    # print('load return list finished!')
 
-    # analyze_data()
-    # print('analyze newly imported data finished!')
+    # grid_administrator_filepath = 'grid_administrators.xlsx'
+    # load_grid_administrator(grid_administrator_filepath)
+    # print('load grid administrator finished!')
+
+    analyze_data()
+    print('analyze newly imported data finished!')

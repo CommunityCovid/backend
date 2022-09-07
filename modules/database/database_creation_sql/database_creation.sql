@@ -7,6 +7,7 @@ CREATE TABLE residents (
     `街道` VARCHAR(20),
     `社区` VARCHAR(20),
     `网格` VARCHAR(20),
+    `小区` VARCHAR(20),
     `所居住花园小区/城中村名称` VARCHAR(40),
     `所属电子哨兵卡口名称` VARCHAR(100),
     `姓名` VARCHAR(100),

@@ -16,6 +16,7 @@ config_filepath = '../../config.yaml'
 load_covid_detection_sql_dir = 'load_covid_detection_sql/'
 load_whitelist_sql_dir = 'load_whitelist_sql/'
 load_gray_list_sql_dir = 'load_gray_list_sql/'
+load_return_list_sql_dir = 'load_return_list_sql/'
 analyze_data_sql_dir = 'analyze_data_sql/'
 
 
@@ -47,7 +48,7 @@ def clean_data(x):
     return s
 
 
-def load_whitelist(whitelist_input_filepath):
+def load_whitelist(whitelist_input_filepath, whitelist_date):
     """
     load whitelist into database.
     :param whitelist_input_filepath: Path of whitelist file, suppose the file is an Excel sheet.
@@ -95,7 +96,9 @@ def load_whitelist(whitelist_input_filepath):
     load_to_temporary_table_sql = load_to_temporary_table_sql.replace('secure_file_priv',
                                                                       database_configs['secure_file_priv'])
     remove_left_people_sql = open(load_whitelist_sql_dir + 'remove_left_people.sql', encoding='utf8').read() + '\n'
+    remove_left_people_sql = remove_left_people_sql.replace('{date}', whitelist_date)
     add_coming_people_sql = open(load_whitelist_sql_dir + 'add_coming_people.sql', encoding='utf8').read() + '\n'
+    add_coming_people_sql = add_coming_people_sql.replace('{date}', whitelist_date)
 
     connectionPool = getConnectionPool()
     conn = None
@@ -298,8 +301,8 @@ def load_covid_detection(covid_detection_input_filepath):
                                        encoding='utf8').read() + '\n'
     load_to_temporary_table_sql = load_to_temporary_table_sql.replace('secure_file_priv',
                                                                       database_configs['secure_file_priv'])
-    update_modified_records_sql = open(load_covid_detection_sql_dir + 'update_modified_records.sql',
-                                       encoding='utf8').read() + '\n'
+    # update_modified_records_sql = open(load_covid_detection_sql_dir + 'update_modified_records.sql',
+    #                                    encoding='utf8').read() + '\n'
     add_new_records_sql = open(load_covid_detection_sql_dir + 'add_new_records.sql', encoding='utf8').read() + '\n'
 
     connectionPool = getConnectionPool()
@@ -321,6 +324,76 @@ def load_covid_detection(covid_detection_input_filepath):
         cursor.execute(add_new_records_sql)
         print('add new records finished! time=', time.time() - start_time)
         # cursor.execute(drop_table_sql)
+        conn.commit()
+    except Exception as e:
+        print(e)
+    finally:
+        cursor.close()
+        conn.close()
+    print('load data into database finished! time=', time.time() - start_time)
+
+
+def load_return_list(return_list_input_filepath, return_list_date):
+    start_time = time.time()
+    print('start load raw return list records to database...')
+
+    # load config data
+    system_configs, database_configs = None, None
+    with open(config_filepath) as config_file:
+        config_data = yaml.load(config_file, Loader=SafeLoader)
+        database_configs = config_data['database']
+        system_configs = config_data['system']
+
+    # load initial data
+    return_list = pd.read_excel(return_list_input_filepath, header=0)
+    print('load raw return finished! time=', time.time() - start_time)
+
+    # clean data
+    return_list = return_list.apply(np.vectorize(clean_data))
+    print('clean data finished! time=', time.time() - start_time)
+
+    # selected needed columns and set column names
+    return_list = return_list.iloc[:, :10]
+    return_list.columns = ['社区', '人员类型', '分类', '网格', '姓名', '证件号码', '手机号码', '房屋地址', '最近采样时间', '楼栋编码']
+
+    # output file
+    return_list_out_file_name = 'return_list.csv'
+    return_list.to_csv(return_list_out_file_name, header=True, index=False, encoding='utf-8')
+    print('output csv finished! time=', time.time() - start_time)
+
+    # move covid detection records to mysql secure file path
+    secure_file_path = database_configs['secure_file_priv']
+    move_file_command = 'sudo -S cp return_list.csv ' + secure_file_path
+    subp = subprocess.Popen([move_file_command], shell=True, stdin=subprocess.PIPE)
+    sudo_password = str.encode(system_configs['password'] + '\n')
+    subp.communicate(sudo_password)
+    print('move csv finished! time=', time.time() - start_time)
+
+    # 1. load covid detection records in csv file into a temporary table in database
+    # 2. merge records in temporary table into main covid detection records table
+    drop_table_sql = open(load_return_list_sql_dir + 'drop_temporary_table.sql', encoding='utf8').read() + '\n'
+    create_temporary_table_sql = open(load_return_list_sql_dir + 'create_temporary_table.sql',
+                                      encoding='utf8').read() + '\n'
+    load_to_temporary_table_sql = open(load_return_list_sql_dir + 'load_to_temporary_table.sql',
+                                       encoding='utf8').read() + '\n'
+    load_to_temporary_table_sql = load_to_temporary_table_sql.replace('secure_file_priv',
+                                                                      database_configs['secure_file_priv'])
+    add_return_list_sql = open(load_return_list_sql_dir + 'add_return_list.sql', encoding='utf8').read() + '\n'
+    add_return_list_sql = add_return_list_sql.replace('{date}', return_list_date)
+
+    connectionPool = getConnectionPool()
+    conn = None
+    cursor = None
+
+    try:
+        conn = connectionPool.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(drop_table_sql)
+        cursor.execute(create_temporary_table_sql)
+        cursor.execute(load_to_temporary_table_sql)
+        print('load data into temporary table finished! time=', time.time() - start_time)
+        cursor.execute(add_return_list_sql)
+        print('add return list to covid detection records finished! time=', time.time() - start_time)
         conn.commit()
     except Exception as e:
         print(e)
@@ -355,17 +428,22 @@ def analyze_data():
 
 
 if __name__ == '__main__':
+    # whitelist_date = '2022-08-24'
     # whitelist_filepath = 'whitelist.xlsx'
-    # load_whitelist(whitelist_filepath)
+    # load_whitelist(whitelist_filepath, whitelist_date)
     # print('load whitelist finished!\n')
 
     # covid_detection_filepath = 'covid_detection.xlsx'
     # load_covid_detection(covid_detection_filepath)
     # print('load covid detection finished!\n')
 
-    gray_list_filepath = 'gray_list.xlsx'
-    load_gray_list(gray_list_filepath)
-    print('load gray list finished!')
+    # gray_list_filepath = 'gray_list.xlsx'
+    # load_gray_list(gray_list_filepath)
+    # print('load gray list finished!')
+
+    return_list_filepath = 'return_list.xlsx'
+    load_return_list(return_list_filepath, '2022-08-25')
+    print('load return list finished!')
 
     # analyze_data()
     # print('analyze newly imported data finished!')

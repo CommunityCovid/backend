@@ -38,6 +38,7 @@ CREATE TABLE residents (
     `灰名单类型` INT,
     `灰名单原因` VARCHAR(100),
     `上次核酸检测时间` DATETIME,
+    `加入白名单时间` DATETIME,
     `移出白名单时间` DATETIME,
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`),

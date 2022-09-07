@@ -201,14 +201,11 @@ def get_grids_time_info():
 def get_export_report():
     params = request.json
     date = params["date"]
-
     parsed_date = datetime.datetime.strptime(date, '%Y-%m-%d')
 
     grids_total_cnt = get_grid_whitelist(db, parsed_date)
-
     data = get_grids_record_time(db, parsed_date)
-    times_map = {}
-    positions = []
+    times_map, positions = {}, []
     for item in data:
         p = item["网格"]
         if p not in times_map:
@@ -240,6 +237,42 @@ def get_export_report():
     # worksheet = writer.sheets['Sheet1']
     # worksheet.write_string(0, 0, f'{date}浪心社区网格统计情况')
     writer.save()
+
+    community_total_cnt = get_community_whitelist(db, parsed_date)
+    community_data = get_community_record_time(db, parsed_date)
+    community_time_map, people_num_map, communities = {}, {}, []
+    for item in community_data:
+        p = item["小区"]
+        if p not in community_time_map:
+            community_time_map[p] = [0 for _ in range(24)]
+            communities.append(p)
+        time_hour = int(item["上次核酸检测时间"].hour)
+        community_time_map[p][time_hour - 1] += 1
+
+        if p not in people_num_map:
+            people_num_map[p] = 0
+        people_num_map[p] += 1
+    communities.sort()
+
+    community_report = pd.DataFrame(columns=["小区", "应采样", "完成率",
+                                             "1时", "2时", "3时", "4时", "5时", "6时", "7时", "8时",
+                                             "9时", "10时", "11时", "12时", "13时", "14时", "15时", "16时",
+                                             "17时", "18时", "19时", "20时", "21时", "22时", "23时", "24时", ],
+                                    index=[])
+    for index, community in enumerate(communities):
+        data = community_time_map[community]
+
+        total_cnt, finished_cnt = 0, sum(data)
+        for item in community_total_cnt:
+            if item["小区"] == community:
+                total_cnt = item["cnt"]
+                break
+        rate = f"{round(finished_cnt / total_cnt * 100, 2)}%"
+        community_report.loc[index] = [community, total_cnt, rate] + data
+
+    community_writer = pd.ExcelWriter(f'reports/{date}浪心社区小区统计情况.xlsx')
+    community_report.to_excel(community_writer, startcol=0, startrow=0, index=False)
+    community_writer.save()
 
     return jsonify(1, 200, {"Content-Type": "application/json"})
 

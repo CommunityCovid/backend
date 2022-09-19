@@ -351,13 +351,13 @@ def load_return_list(return_list_input_filepath, return_list_date):
     return_list = pd.read_excel(return_list_input_filepath, header=0)
     print('load raw return finished! time=', time.time() - start_time)
 
-    # clean data
-    return_list = return_list.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
-
     # selected needed columns and set column names
     return_list = return_list.iloc[:, :10]
     return_list.columns = ['社区', '人员类型', '分类', '网格', '姓名', '证件号码', '手机号码', '房屋地址', '最近采样时间', '楼栋编码']
+
+    # clean data
+    return_list = return_list.apply(np.vectorize(clean_data))
+    print('clean data finished! time=', time.time() - start_time)
 
     # output file
     return_list_out_file_name = 'return_list.csv'
@@ -455,7 +455,86 @@ def load_grid_administrator(grid_administrator_input_filepath):
     print('load data into database finished! time=', time.time() - start_time)
 
 
-def analyze_data():
+def get_split_cell_sqls(location_cell_input_filepath):
+    start_time = time.time()
+    # load initial data
+    location_cell = pd.read_excel(location_cell_input_filepath, header=0)
+    print('load raw return finished! time=', time.time() - start_time)
+
+    # selected needed columns and set column names
+    location_cell = location_cell.iloc[:, 6:8]
+
+    # clean data
+    location_cell = location_cell.apply(np.vectorize(clean_data))
+    print('clean data finished! time=', time.time() - start_time)
+
+    # get cells list
+    cells = pd.unique(location_cell['所属小区'])
+
+    # split locations into corresponding cell
+    cell_location_dic = {}
+    for cell in cells:
+        cell_location_dic[cell] = []
+    for index, row in location_cell.iterrows():
+        cell_location_dic[row['所属小区']].append(row['楼栋地址'])
+
+    # replace range location with certain locations
+    # cell_location_dic['宏源发物流园'].remove('洲石路1号石岩物流园1、2、3栋')
+    # cell_location_dic['宏源发物流园'].extend(['洲石路1号石岩物流园1栋', '洲石路1号石岩物流园2栋', '洲石路1号石岩物流园3栋'])
+    #
+    # cell_location_dic['宏源发物流园'].remove('洲石路1号石岩物流园B、C栋')
+    # cell_location_dic['宏源发物流园'].extend(['洲石路1号石岩物流园B栋', '洲石路1号石岩物流园C栋'])
+    #
+    # cell_location_dic['宏源发物流园'].remove('洲石路1号石岩物流园D、E栋')
+    # cell_location_dic['宏源发物流园'].extend(['洲石路1号石岩物流园D栋', '洲石路1号石岩物流园E栋'])
+    #
+    # cell_location_dic['宝石南路散栋'].remove('宝石南路31-33号')
+    # cell_location_dic['宝石南路散栋'].extend(['宝石南路31号', '宝石南路32号', '宝石南路33号'])
+    #
+    # cell_location_dic['浪心村'].remove('浪心旧村五区46、47、48号')
+    # cell_location_dic['浪心村'].extend(['浪心旧村五区46号', '浪心旧村五区47号', '浪心旧村五区48号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区67-72号')
+    # cell_location_dic['龙马小区'].extend(['山城小区67号', '山城小区68号', '山城小区69号', '山城小区70号', '山城小区71号', '山城小区72号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区21、22、23号')
+    # cell_location_dic['龙马小区'].extend(['山城小区21号', '山城小区22号', '山城小区23号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区34、35号')
+    # cell_location_dic['龙马小区'].extend(['山城小区34号', '山城小区35号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区25-27号')
+    # cell_location_dic['龙马小区'].extend(['山城小区25号', '山城小区26号', '山城小区27号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区15-17号')
+    # cell_location_dic['龙马小区'].extend(['山城小区15号', '山城小区16号', '山城小区17号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区37、39、38号')
+    # cell_location_dic['龙马小区'].extend(['山城小区37号', '山城小区38号', '山城小区39号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区41、42、43、45号')
+    # cell_location_dic['龙马小区'].extend(['山城小区41号', '山城小区42号', '山城小区43号', '山城小区45号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区31、32号')
+    # cell_location_dic['龙马小区'].extend(['山城小区31号', '山城小区32号'])
+    #
+    # cell_location_dic['龙马小区'].remove('山城小区2、3号')
+    # cell_location_dic['龙马小区'].extend(['山城小区2号', '山城小区3号'])
+
+    # create SQLs to split cell
+    split_cell_sqls = []
+    for cell in cells:
+        locations = cell_location_dic[cell]
+        if len(locations) > 0:
+            sql = "update langxin_community.residents set 小区 = '{}' where 房屋地址 like '%{}%'".format(cell, locations[0])
+            for i in range(1, len(locations)):
+                sql += " or 房屋地址 like '%{}%'".format(locations[i])
+            sql += ';\n'
+            split_cell_sqls.append(sql)
+    return split_cell_sqls
+
+
+def analyze_data(location_cell_input_filepath):
     start_time = time.time()
     print('start analyze newly imported data...')
 
@@ -467,16 +546,16 @@ def analyze_data():
     # 1. compute latest sample time into whitelist
     compute_latest_sample_sql = open(analyze_data_sql_dir + 'compute_latest_sample.sql', encoding='utf8').read() + '\n'
     # 2. update cell
-    split_cell_SQLs = open(analyze_data_sql_dir + 'split_cell.sql', encoding='utf8').read().split('&')
+    split_cell_sqls = get_split_cell_sqls(location_cell_input_filepath)
 
     try:
         conn = connectionPool.get_connection()
         cursor = conn.cursor()
-        cursor.execute(compute_latest_sample_sql)
+        # cursor.execute(compute_latest_sample_sql)
         print('compute latest sampling time finished! time=', time.time() - start_time)
 
-        for i in range(1, len(split_cell_SQLs)):
-            cursor.execute(split_cell_SQLs[i].split(';')[0] + ';\n')
+        for sql in split_cell_sqls:
+            cursor.execute(sql)
         print('split cell finished! time=', time.time() - start_time)
         conn.commit()
     except Exception as e:
@@ -510,5 +589,6 @@ if __name__ == '__main__':
     # load_grid_administrator(grid_administrator_filepath)
     # print('load grid administrator finished!')
 
-    analyze_data()
+    location_cell_filepath = 'location_cell.xlsx'
+    analyze_data(location_cell_filepath)
     print('analyze newly imported data finished!')

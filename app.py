@@ -60,6 +60,25 @@ def get_community_cnt():
          }), 200, {"Content-Type": "application/json"}
 
 
+@app.route('/api/getCommunityGreyCnt', methods=['POST', 'GET'])
+def get_community_grey_cnt():
+    params = request.json
+    date = params['date']
+    record_limit = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    date_record = date_tmp - datetime.timedelta(days=record_limit)
+
+    total_cnt = get_greylist_num(db, date, date_next)
+    finished_cnt = get_finished_grey_num(db, date, date_next, date_record)
+
+    return jsonify(
+        {"totalCount": int(total_cnt),
+         "finishedCnt": int(finished_cnt)
+         }), 200, {"Content-Type": "application/json"}
+
+
+
 @app.route('/api/getGridsCnt', methods=['POST', 'GET'])
 def get_grids_cnt():
     params = request.json
@@ -70,6 +89,30 @@ def get_grids_cnt():
     date_record = date_tmp - datetime.timedelta(days=record_limit)
     grids_total_cnt = get_grid_whitelist(db, date_tmp)
     grid_finish_cnt = get_grid_finished(db, date_tmp, date_next, date_record)
+
+    grid_info_map = {}
+    for item in grids_total_cnt:
+        grid_info_map.update({
+            item["网格"]: {"totalCnt": item["cnt"],
+                         "finishedCnt": 0}
+        })
+    for item in grid_finish_cnt:
+        grid_info_map[item["网格"]].update({
+            "finishedCnt": item["cnt"]
+        })
+    return jsonify(grid_info_map, 200, {"Content-Type": "application/json"})
+
+
+@app.route('/api/getGridsGreyCnt', methods=['POST', 'GET'])
+def get_grids_grey_cnt():
+    params = request.json
+    date = params["date"]
+    record_limit = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    date_record = date_tmp - datetime.timedelta(days=record_limit)
+    grids_total_cnt = get_grid_grey_whitelist(db, date_tmp)
+    grid_finish_cnt = get_grid_grey_finished(db, date_tmp, date_next, date_record)
 
     grid_info_map = {}
     for item in grids_total_cnt:
@@ -122,6 +165,7 @@ def get_whitelist():
 @app.route('/api/getGreyListPeople', methods=['POST', 'GET'])
 def get_grey_list_people():
     grey_list = get_grey_list(db=db)
+
     values = []
     for item in grey_list:
         values.append([item[key] for key in residents_columns])
@@ -132,7 +176,9 @@ def get_grey_list_people():
 def get_grid_people():
     params = request.json
     grid = params["grid"]
-    whitelist = get_grid_whitelist_people(db, grid)
+    date = params["date"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    whitelist = get_grid_whitelist_people(db, date_tmp, grid)
     values = []
     for item in whitelist:
         values.append([item[key] for key in residents_columns])
@@ -187,7 +233,7 @@ def get_grids_time_info():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     record_limit = date_tmp - datetime.timedelta(days=limit_record)
-    data = get_grids_record_time(db, record_limit)
+    data = get_grids_record_time(db, date_tmp, record_limit)
     times_map = {}
     positions = []
     for item in data:
@@ -206,14 +252,67 @@ def get_grids_time_info():
     return jsonify({"recordsTime": times_map, "positions": positions}, 200, {"Content-Type": "application/json"})
 
 
+@app.route('/api/getHousingCnt', methods=['POST', 'GET'])
+def get_housings_cnt():
+    params = request.json
+    date = params["date"]
+    record_limit = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    date_record = date_tmp - datetime.timedelta(days=record_limit)
+    grids_total_cnt = get_housings_whitelist(db, date_tmp)
+    grid_finish_cnt = get_housing_finished(db, date_tmp, date_next, date_record)
+
+    grid_info_map = {}
+    for item in grids_total_cnt:
+        grid_info_map.update({
+            item["小区"]: {"totalCnt": item["cnt"],
+                         "finishedCnt": 0}
+        })
+    for item in grid_finish_cnt:
+        grid_info_map[item["小区"]].update({
+            "finishedCnt": item["cnt"]
+        })
+    return jsonify(grid_info_map, 200, {"Content-Type": "application/json"})
+
+
+@app.route('/api/getHousingTimeInfo', methods=['POST', 'GET'])
+def get_housing_time_info():
+    params = request.json
+    date = params["date"]
+    limit_record = params["recordLimit"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    record_limit = date_tmp - datetime.timedelta(days=limit_record)
+    data = get_housing_record_time(db, date_tmp, record_limit)
+    times_map = {}
+    positions = []
+    for item in data:
+        p = item["小区"]
+        if p not in times_map:
+            times_map[p] = [0 for _ in range(24)]
+            positions.append(p)
+        time_hour = int(item["上次核酸检测时间"].hour)
+        times_map[p][time_hour - 1] += 1
+    if len(positions) == 0:
+        housing = get_housing(db, date_tmp)
+        for g in housing:
+            positions.append(g["小区"])
+            times_map[g["小区"]] = [0 for _ in range(24)]
+    positions.sort()
+    return jsonify({"recordsTime": times_map, "positions": positions}, 200, {"Content-Type": "application/json"})
+
+
 @app.route('/api/getExportReport', methods=['POST', 'GET'])
 def get_export_report():
     params = request.json
     date = params["date"]
     parsed_date = datetime.datetime.strptime(date, '%Y-%m-%d')
+    record_limit = parsed_date - datetime.timedelta(days=1)
 
     grids_total_cnt = get_grid_whitelist(db, parsed_date)
-    data = get_grids_record_time(db, parsed_date)
+    data = get_grids_record_time(db, parsed_date, record_limit)
+    grids_charges = get_grids_charge(db)
     times_map, positions = {}, []
     for item in data:
         p = item["网格"]
@@ -233,14 +332,21 @@ def get_export_report():
         data = times_map[grid]
 
         total_cnt, finished_cnt = 0, sum(data)
+        grids_charge = ""
         for item in grids_total_cnt:
             if item["网格"] == grid:
                 total_cnt = item["cnt"]
                 break
+        for item in grids_charges:
+            if item["网格号"] == grid:
+                grids_charge = item["姓名"]
+                break
+
         rate = f"{round(finished_cnt / total_cnt * 100, 2)}%"
 
-        report.loc[index] = [grid, grid, total_cnt, rate] + data
-
+        report.loc[index] = [grid, grids_charge, total_cnt, rate] + data
+    if not os.path.exists('reports'):
+        os.mkdir('reports')
     writer = pd.ExcelWriter(f'reports/{date}浪心社区网格统计情况.xlsx')
     report.to_excel(writer, startcol=0, startrow=0, index=False)
     # worksheet = writer.sheets['Sheet1']

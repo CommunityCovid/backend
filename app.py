@@ -153,6 +153,33 @@ def get_grid_cnt():
     return jsonify({"totalCnt": total_cnt, "finishedCnt": finished_cnt}, 200, {"Content-Type": "application/json"})
 
 
+@app.route('/api/getGridGreyCnt', methods=['POST', 'GET'])
+def get_grid_grey_cnt():
+    params = request.json
+    date = params["date"]
+    record_limit = params["recordLimit"]
+    grid_name = params["grid"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_next = date_tmp + datetime.timedelta(days=1)
+    date_record = date_tmp - datetime.timedelta(days=int(record_limit))
+    grids_total_cnt = get_grid_grey_whitelist(db, date_tmp)
+    grid_finish_cnt = get_grid_grey_finished(db, date_tmp, date_next, date_record)
+
+    total_cnt, finished_cnt = 0, 0
+
+    for item in grids_total_cnt:
+        if item["网格"] == grid_name:
+            total_cnt = item["cnt"]
+            break
+    for item in grid_finish_cnt:
+        if item["网格"] == grid_name:
+            finished_cnt = item["cnt"]
+            break
+
+    return jsonify({"totalCnt": total_cnt, "finishedCnt": finished_cnt}, 200, {"Content-Type": "application/json"})
+
+
+
 @app.route('/api/getCommunityPeople', methods=['POST', 'GET'])
 def get_whitelist():
     whitelist = get_whitelist()
@@ -179,6 +206,18 @@ def get_grid_people():
     date = params["date"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     whitelist = get_grid_whitelist_people(db, date_tmp, grid)
+    values = []
+    for item in whitelist:
+        values.append([item[key] for key in residents_columns])
+    return jsonify({"columns": residents_columns, "people": values}, 200, {"Content-Type": "application/json"})
+
+@app.route('/api/getGridGreyPeople', methods=['POST', 'GET'])
+def get_grid_grey_people():
+    params = request.json
+    grid = params["grid"]
+    date = params["date"]
+    date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
+    whitelist = get_grid_greylist_people(db, date_tmp, grid)
     values = []
     for item in whitelist:
         values.append([item[key] for key in residents_columns])
@@ -354,7 +393,7 @@ def get_export_report():
     writer.save()
 
     community_total_cnt = get_community_whitelist(db, parsed_date)
-    community_data = get_community_record_time(db, parsed_date)
+    community_data = get_community_record_time(db, parsed_date, record_limit)
     community_time_map, people_num_map, communities = {}, {}, []
     for item in community_data:
         p = item["小区"]

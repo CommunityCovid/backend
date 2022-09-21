@@ -14,7 +14,7 @@ CREATE TABLE residents (
     `性别` VARCHAR(3),
     `人员类型` VARCHAR(20),
     `证件类型` VARCHAR(20),
-    `证件号码` VARCHAR(20),
+    `证件号码` VARCHAR(1000),
     `出生年月` DATETIME,
     `手机号码` VARCHAR(20),
     `国籍` VARCHAR(20),

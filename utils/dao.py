@@ -1,9 +1,9 @@
 import json
 import random
 
-import numpy as np
+#import numpy as np
 import pymysql
-import pandas as pd
+#import pandas as pd
 
 
 def get_whitelist_num(db, date, date_plus1):
@@ -14,6 +14,7 @@ def get_whitelist_num(db, date, date_plus1):
           f"where r.加入白名单时间 <= '{date}' " \
           f"and (r.移出白名单时间 >= '{date}' or 移出白名单时间 is null);" \
         # f"and r.是否在灰名单 = '否';"
+    print(sql)
     data = sql_query(sql, cur)
     return data[0]["cnt"]
 

@@ -4,9 +4,9 @@ from
      residents r right join
      gray_list g
 on
-    r.姓名 = g.姓名 and
+    r.证件号码 = g.证件号码 and
     r.是否在白名单 = '是'
-where r.姓名 is not null) g
+where r.证件号码 is not null) g
 on
     r.证件号码 = g.证件号码 and
     r.是否在白名单 = '是'

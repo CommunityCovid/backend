@@ -2,8 +2,7 @@ import datetime
 import logging
 import re
 import string
-
-import matplotlib.pyplot as plt
+import subprocess
 from flask_cors import CORS
 from flask import Flask, request, jsonify
 from flask import render_template, Response, json, make_response
@@ -12,6 +11,8 @@ import os
 from utils.util import *
 from utils.dao import *
 from utils.dao2 import *
+
+from modules.raw_data_load.load_data import *
 
 from utils.statics import *
 from flask_mysqldb import MySQL
@@ -50,10 +51,9 @@ def get_community_cnt():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=record_limit)
-
     total_cnt = get_whitelist_num(db, date, date_next)
     finished_cnt = get_finished_num(db, date, date_next, date_record)
-
+    print(total_cnt, finished_cnt)
     return jsonify(
         {"totalCount": int(total_cnt),
          "finishedCnt": int(finished_cnt)
@@ -76,7 +76,6 @@ def get_community_grey_cnt():
         {"totalCount": int(total_cnt),
          "finishedCnt": int(finished_cnt)
          }), 200, {"Content-Type": "application/json"}
-
 
 
 @app.route('/api/getGridsCnt', methods=['POST', 'GET'])
@@ -179,7 +178,6 @@ def get_grid_grey_cnt():
     return jsonify({"totalCnt": total_cnt, "finishedCnt": finished_cnt}, 200, {"Content-Type": "application/json"})
 
 
-
 @app.route('/api/getCommunityPeople', methods=['POST', 'GET'])
 def get_whitelist():
     whitelist = get_whitelist()
@@ -211,6 +209,7 @@ def get_grid_people():
         values.append([item[key] for key in residents_columns])
     return jsonify({"columns": residents_columns, "people": values}, 200, {"Content-Type": "application/json"})
 
+
 @app.route('/api/getGridGreyPeople', methods=['POST', 'GET'])
 def get_grid_grey_people():
     params = request.json
@@ -229,8 +228,27 @@ def upload_file():
     file = request.files.get("file")
     file_name = request.form.get("name")
     file.save(f"data/{file_name}")
+    date = file_name.split("_")[0]
+    # load_data_cmd = "python3 modules/raw_data_load/load_data.py"
+    # subp = subprocess.Popen([load_data_cmd], shell=True, stdin=subprocess.PIPE)
+    # subp.communicate()
+    if "白名单" in file_name:
+        load_whitelist(f"data/{file_name}", date, db)
+        analyze_data(db)
+    elif "核酸" in file_name:
+        load_covid_detection(f"data/{file_name}", db)
+        analyze_data(db)
+    elif "灰名单" in file_name:
+        load_gray_list(f"data/{file_name}", db)
+    elif "小区" in file_name:
+        split_cell(f"data/{file_name}", db)
+    elif "网格" in file_name:
+        load_grid_administrator(f"data/{file_name}", db)
+    elif "回流数据" in file_name:
+        load_return_list(f"data/{file_name}", date, db)
+        analyze_data(db)
+
     # logging.info(f"receive and store file {file_name} in './data'")
-    print(f"receive and store file {file_name} in './data'")
     return jsonify({}, 200, {"Content-Type": "application/json"})
 
 
@@ -432,7 +450,7 @@ def get_export_report():
 
 
 def main():
-    app.run(debug=True, host="0.0.0.0")
+    app.run(debug=True, host="0.0.0.0", port="9999")
 
 
 if __name__ == '__main__':

@@ -13,4 +13,5 @@ on
     r.证件号码 = nr.证件号码 and
     r.房屋编码 = nr.房屋编码
 where
-    r.证件号码 is null;
+    r.证件号码 is null and
+	nr.是否暂离 = '正常';

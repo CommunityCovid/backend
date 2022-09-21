@@ -1,20 +1,21 @@
--- move left people away from whitelist
-UPDATE langxin_community.residents r join
-(select distinct r.证件号码 as 证件号码, r.房屋编码 as 房屋编码
-from langxin_community.residents r left join
-    langxin_community.new_residents nr
+-- move people not in whitelist of certain date
+update langxin_community.residents r left join
+    (select cr.证件号码, cr.房屋编码, cr.审核时间
+    from
+         langxin_community.new_residents nr right join
+        (select r.证件号码, r.房屋编码, r.审核时间 from langxin_community.residents r
+        where r.加入白名单时间 <= '{date}' and
+            (r.移出白名单时间 >= '{date}' or r.移出白名单时间 is null)) cr
+    on
+        nr.证件号码 = cr.证件号码 and
+        nr.房屋编码 = cr.房屋编码 and
+        nr.审核时间 = cr.审核时间
+    where
+        nr.证件号码 is null) lr
 on
-    r.证件号码 = nr.证件号码 and
-    r.房屋编码 = nr.房屋编码    
-where
-	r.是否在白名单 = '是' and
-    nr.证件号码 is null and
-	nr.是否暂离 = '正常'
-) leave_r
-on
-    r.证件号码 = leave_r.证件号码 and
-    r.房屋编码 = leave_r.房屋编码 and
-    r.是否在白名单 = '是'
+    r.证件号码 = lr.证件号码 and
+    r.房屋编码 = lr.房屋编码 and
+    r.审核时间 = lr.审核时间
 set
     r.是否在白名单 = '否',
-    r.移出白名单时间 = DATE_SUB(DATE('{date}'), INTERVAL 1 SECOND)
+    r.移出白名单时间 = '{date}';

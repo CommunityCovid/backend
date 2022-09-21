@@ -95,6 +95,9 @@ def load_whitelist(whitelist_input_filepath, whitelist_date,  db):
                                                                       database_configs['secure_file_priv'])
     remove_left_people_sql = open(load_whitelist_sql_dir + 'remove_left_people.sql', encoding='utf8').read() + '\n'
     remove_left_people_sql = remove_left_people_sql.replace('{date}', whitelist_date)
+    update_existing_people_sql = open(load_whitelist_sql_dir + 'update_existing_people.sql',
+                                      encoding='utf8').read() + '\n'
+    update_existing_people_sql = update_existing_people_sql.replace('{date}', whitelist_date)
     add_coming_people_sql = open(load_whitelist_sql_dir + 'add_coming_people.sql', encoding='utf8').read() + '\n'
     add_coming_people_sql = add_coming_people_sql.replace('{date}', whitelist_date)
     
@@ -107,6 +110,8 @@ def load_whitelist(whitelist_input_filepath, whitelist_date,  db):
         print('load whitelist into temporary table finished! time=', time.time() - start_time)
         cursor.execute(remove_left_people_sql)
         print('remove left people finished! time=', time.time() - start_time)
+        cursor.execute(update_existing_people_sql)
+        print('update existing people finished! time=', time.time() - start_time)
         cursor.execute(add_coming_people_sql)
         print('add newly coming people finished! time=', time.time() - start_time)
         cursor.execute(drop_table_sql)
@@ -422,6 +427,7 @@ def load_grid_administrator(grid_administrator_input_filepath, db):
         cursor.close()
     print('load data into database finished! time=', time.time() - start_time)
 
+
 def split_cell(location_cell_input_filepath, db):
     start_time = time.time()
 
@@ -515,6 +521,8 @@ if __name__ == '__main__':
     # load_grid_administrator(grid_administrator_filepath)
     # print('load grid administrator finished!')
 
-    location_cell_filepath = 'location_cell.xlsx'
-    analyze_data(location_cell_filepath)
+    # location_cell_filepath = 'location_cell.xlsx'
+    # split_cell(location_cell_filepath, db)
+
+    # analyze_data()
     #print('analyze newly imported data finished!')

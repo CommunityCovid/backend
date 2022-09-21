@@ -10,6 +10,7 @@ config_filepath = '../../config.yaml'
 # 1.first call getConnectionPool to obtain a connection pool.
 # 2.Call function get_connection() of connection pool to get a connection
 
+
 def getConnectionPool():
     database_configs = None
     with open(config_filepath) as config_file:

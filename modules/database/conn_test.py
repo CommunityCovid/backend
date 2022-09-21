@@ -6,3 +6,4 @@ if __name__ == '__main__':
     cursor = conn.cursor()
     cursor.execute('select * from langxin_community.residents limit 1')
     print(cursor.fetchone())
+

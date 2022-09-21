@@ -98,6 +98,8 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
                                                                       database_configs['secure_file_priv'])
     remove_left_people_sql = open(load_whitelist_sql_dir + 'remove_left_people.sql', encoding='utf8').read() + '\n'
     remove_left_people_sql = remove_left_people_sql.replace('{date}', whitelist_date)
+    update_existing_people_sql = open(load_whitelist_sql_dir + 'update_existing_people.sql', encoding='utf8').read() + '\n'
+    update_existing_people_sql = update_existing_people_sql.replace('{date}', whitelist_date)
     add_coming_people_sql = open(load_whitelist_sql_dir + 'add_coming_people.sql', encoding='utf8').read() + '\n'
     add_coming_people_sql = add_coming_people_sql.replace('{date}', whitelist_date)
 
@@ -114,6 +116,8 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
         print('load whitelist into temporary table finished! time=', time.time() - start_time)
         cursor.execute(remove_left_people_sql)
         print('remove left people finished! time=', time.time() - start_time)
+        cursor.execute(update_existing_people_sql)
+        print('update existing people finished! time=', time.time() - start_time)
         cursor.execute(add_coming_people_sql)
         print('add newly coming people finished! time=', time.time() - start_time)
         cursor.execute(drop_table_sql)
@@ -478,49 +482,6 @@ def get_split_cell_sqls(location_cell_input_filepath):
     for index, row in location_cell.iterrows():
         cell_location_dic[row['所属小区']].append(row['楼栋地址'])
 
-    # replace range location with certain locations
-    cell_location_dic['宏源发物流园'].remove('洲石路1号石岩物流园1、2、3栋')
-    cell_location_dic['宏源发物流园'].extend(['洲石路1号石岩物流园1栋', '洲石路1号石岩物流园2栋', '洲石路1号石岩物流园3栋'])
-
-    cell_location_dic['宏源发物流园'].remove('洲石路1号石岩物流园B、C栋')
-    cell_location_dic['宏源发物流园'].extend(['洲石路1号石岩物流园B栋', '洲石路1号石岩物流园C栋'])
-
-    cell_location_dic['宏源发物流园'].remove('洲石路1号石岩物流园D、E栋')
-    cell_location_dic['宏源发物流园'].extend(['洲石路1号石岩物流园D栋', '洲石路1号石岩物流园E栋'])
-
-    cell_location_dic['宝石南路散栋'].remove('宝石南路31-33号')
-    cell_location_dic['宝石南路散栋'].extend(['宝石南路31号', '宝石南路32号', '宝石南路33号'])
-
-    cell_location_dic['浪心村'].remove('浪心旧村五区46、47、48号')
-    cell_location_dic['浪心村'].extend(['浪心旧村五区46号', '浪心旧村五区47号', '浪心旧村五区48号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区67-72号')
-    cell_location_dic['龙马小区'].extend(['山城小区67号', '山城小区68号', '山城小区69号', '山城小区70号', '山城小区71号', '山城小区72号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区21、22、23号')
-    cell_location_dic['龙马小区'].extend(['山城小区21号', '山城小区22号', '山城小区23号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区34、35号')
-    cell_location_dic['龙马小区'].extend(['山城小区34号', '山城小区35号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区25-27号')
-    cell_location_dic['龙马小区'].extend(['山城小区25号', '山城小区26号', '山城小区27号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区15-17号')
-    cell_location_dic['龙马小区'].extend(['山城小区15号', '山城小区16号', '山城小区17号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区37、39、38号')
-    cell_location_dic['龙马小区'].extend(['山城小区37号', '山城小区38号', '山城小区39号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区41、42、43、45号')
-    cell_location_dic['龙马小区'].extend(['山城小区41号', '山城小区42号', '山城小区43号', '山城小区45号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区31、32号')
-    cell_location_dic['龙马小区'].extend(['山城小区31号', '山城小区32号'])
-
-    cell_location_dic['龙马小区'].remove('山城小区2、3号')
-    cell_location_dic['龙马小区'].extend(['山城小区2号', '山城小区3号'])
-
     # create SQLs to split cell
     split_cell_sqls = []
     for cell in cells:
@@ -568,10 +529,18 @@ def analyze_data(location_cell_input_filepath):
 
 
 if __name__ == '__main__':
-    # whitelist_date = '2022-08-24'
-    # whitelist_filepath = 'whitelist.xlsx'
-    # load_whitelist(whitelist_filepath, whitelist_date)
-    # print('load whitelist finished!\n')
+    whitelist_paths = ['7.27浪心白名单.xlsx', '8.19浪心白名单.xlsx', '8.24浪心白名单.xlsx', '8.25浪心白名单.xlsx']
+    whitelist_dates = ['2022-07-27', '2022-08-19', '2022-08-24', '2022-08-25']
+    right_order = [0, 1, 2, 3]
+    inverse_order = [3, 2, 1, 0]
+    random_order = [0, 3, 2, 1]
+    
+    for i in [3, 2]:
+        whitelist_date = whitelist_dates[i]
+        whitelist_filepath = whitelist_paths[i]
+        print("loading", whitelist_filepath)
+        load_whitelist(whitelist_filepath, whitelist_date)
+    print('load whitelist finished!\n')
 
     # covid_detection_filepath = 'covid_detection.xlsx'
     # load_covid_detection(covid_detection_filepath)
@@ -589,6 +558,6 @@ if __name__ == '__main__':
     # load_grid_administrator(grid_administrator_filepath)
     # print('load grid administrator finished!')
 
-    location_cell_filepath = 'location_cell.xlsx'
-    analyze_data(location_cell_filepath)
-    print('analyze newly imported data finished!')
+    # location_cell_filepath = 'location_cell.xlsx'
+    # analyze_data(location_cell_filepath)
+    # print('analyze newly imported data finished!')

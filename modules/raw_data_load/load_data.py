@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 import subprocess
@@ -55,6 +56,9 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
     :param whitelist_input_filepath: Path of whitelist file, suppose the file is an Excel sheet.
     :return: None
     """
+    log = open('whitelist_log.txt', 'a')
+    log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    log.write("start load {}\n".format(whitelist_input_filepath))
 
     start_time = time.time()
     print('start load raw whitelist to database...')
@@ -68,16 +72,24 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
 
     # load initial data
     whitelist = pd.read_excel(whitelist_input_filepath, header=0)
-    print('load raw whitelist finished! time=', time.time() - start_time)
+    print('load raw whitelist finished! time =', time.time() - start_time)
+    log.write('load raw whitelist finished! time = {}\n'.format(time.time() - start_time))
 
     # clean data
     whitelist = whitelist.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
+    print('clean data finished! time =', time.time() - start_time)
+    log.write('clean data finished! time = {}\n'.format(time.time() - start_time))
 
     # output file
+    whitelist = whitelist[
+        ['街道', '社区', '网格', '所居住花园小区/城中村名称', '所属电子哨兵卡口名称', '姓名', '性别', '人员类型', '证件类型', '证件号码', '出生年月', '手机号码', '国籍',
+         '是否暂离', '户籍地址', '工作单位所在市', '工作单位所在行政区', '工作单位名称', '工作单位地址', '是否纳入市网格办统计', '楼栋地址', '楼栋编码', '房屋地址', '房屋编码', '备注',
+         '审核结果', '审核人', '审核时间', '上报类型']]
+    whitelist = whitelist[whitelist['是否暂离'].isin(['正常', '否'])]
     whitelist_out_file_name = 'whitelist.csv'
     whitelist.to_csv(whitelist_out_file_name, header=True, index=False, encoding='utf-8')
-    print('output csv finished! time=', time.time() - start_time)
+    print('output csv finished! time =', time.time() - start_time)
+    log.write('output csv finished! time = {}\n'.format(time.time() - start_time))
 
     # move covid detection records to mysql secure file path
     secure_file_path = database_configs['secure_file_priv']
@@ -85,7 +97,8 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
     subp = subprocess.Popen([move_file_command], shell=True, stdin=subprocess.PIPE)
     sudo_password = str.encode(system_configs['password'] + '\n')
     subp.communicate(sudo_password)
-    print('move csv finished! time=', time.time() - start_time)
+    print('move csv finished! time =', time.time() - start_time)
+    log.write('move csv finished! time = {}\n'.format(time.time() - start_time))
 
     # 1. load whitelist in csv file into a temporary table in database
     # 2. merge whitelist in temporary table into main whitelist table
@@ -100,6 +113,11 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
     remove_left_people_sql = remove_left_people_sql.replace('{date}', whitelist_date)
     update_existing_people_sql = open(load_whitelist_sql_dir + 'update_existing_people.sql', encoding='utf8').read() + '\n'
     update_existing_people_sql = update_existing_people_sql.replace('{date}', whitelist_date)
+
+    get_next_add_time_sql = "select min(加入白名单时间) from langxin_community.residents where 加入白名单时间 > '{date}'".replace(
+        '{date}', whitelist_date)
+    get_next_remove_time_sql = "select min(移出白名单时间) from langxin_community.residents where 移出白名单时间 > '{date}'".replace(
+        '{date}', whitelist_date)
     add_coming_people_sql = open(load_whitelist_sql_dir + 'add_coming_people.sql', encoding='utf8').read() + '\n'
     add_coming_people_sql = add_coming_people_sql.replace('{date}', whitelist_date)
 
@@ -113,21 +131,44 @@ def load_whitelist(whitelist_input_filepath, whitelist_date):
         cursor.execute(drop_table_sql)
         cursor.execute(create_temporary_table_sql)
         cursor.execute(load_to_temporary_table_sql)
-        print('load whitelist into temporary table finished! time=', time.time() - start_time)
+        print('load whitelist into temporary table finished! time =', time.time() - start_time)
+        log.write('load whitelist into temporary table finished! time = {}\n'.format(time.time() - start_time))
         cursor.execute(remove_left_people_sql)
-        print('remove left people finished! time=', time.time() - start_time)
+        print('remove left people finished! time =', time.time() - start_time)
+        log.write('remove left people finished! time = {}\n'.format(time.time() - start_time))
         cursor.execute(update_existing_people_sql)
-        print('update existing people finished! time=', time.time() - start_time)
+        print('update existing people finished! time =', time.time() - start_time)
+        log.write('update existing people finished! time = {}\n'.format(time.time() - start_time))
+
+        remove_time = 'null'
+        cursor.execute(get_next_add_time_sql)
+        next_add_time = cursor.fetchone()[0]
+        cursor.execute(get_next_remove_time_sql)
+        next_remove_time = cursor.fetchone()[0]
+        if next_add_time is None and next_remove_time is None:
+            remove_time = 'null'
+        elif next_add_time is None:
+            remove_time = "'" + next_remove_time.strftime("%Y-%m-%d %H:%M:%S") + "'"
+        elif next_remove_time is None:
+            remove_time = "'" + (next_add_time - datetime.timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S") + "'"
+        else:
+            if next_add_time < next_remove_time:
+                remove_time = "'" + (next_add_time - datetime.timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S") + "'"
+            else:
+                remove_time = "'" + next_remove_time.strftime("%Y-%m-%d %H:%M:%S") + "'"
+        add_coming_people_sql = add_coming_people_sql.replace('{remove_time}', remove_time)
         cursor.execute(add_coming_people_sql)
-        print('add newly coming people finished! time=', time.time() - start_time)
-        cursor.execute(drop_table_sql)
+        print('add newly coming people finished! time =', time.time() - start_time)
+        log.write('add newly coming people finished! time = {}\n'.format(time.time() - start_time))
+        # cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
         print(e)
     finally:
         cursor.close()
         conn.close()
-    print('load data into database finished! time=', time.time() - start_time)
+    print('load data into database finished! time =', time.time() - start_time)
+    log.write('load data into database finished! time = {}\n'.format(time.time() - start_time))
 
 
 def process_raw_gray_list(gray_list):
@@ -208,7 +249,7 @@ def load_gray_list(gray_list_input_filepath):
 
     # clean data
     gray_list = gray_list.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
+    print('clean data finished! time =', time.time() - start_time)
 
     # output file
     gray_list_out_file_name = 'gray_list.csv'
@@ -220,7 +261,7 @@ def load_gray_list(gray_list_input_filepath):
     subp = subprocess.Popen([move_file_command], shell=True, stdin=subprocess.PIPE)
     sudo_password = str.encode(system_configs['password'] + '\n')
     subp.communicate(sudo_password)
-    print('move csv finished! time=', time.time() - start_time)
+    print('move csv finished! time =', time.time() - start_time)
 
     # 1. load gray list in csv file into temporary table in database
     # 2. merge gray list in temporary table into main whitelist table
@@ -245,12 +286,12 @@ def load_gray_list(gray_list_input_filepath):
         cursor.execute(drop_table_sql)
         cursor.execute(create_temporary_table_sql)
         cursor.execute(load_to_temporary_table_sql)
-        print('load data into temporary table finished! time=', time.time() - start_time)
+        print('load data into temporary table finished! time =', time.time() - start_time)
 
         cursor.execute(remove_all_gray_list_sql)
         cursor.execute(add_gray_list_not_related2age_sql)
         cursor.execute(add_gray_list_related2age_sql)
-        print('update gray list finished! time=', time.time() - start_time)
+        print('update gray list finished! time =', time.time() - start_time)
         cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
@@ -258,7 +299,8 @@ def load_gray_list(gray_list_input_filepath):
     finally:
         cursor.close()
         conn.close()
-    print('load data into database finished! time=', time.time() - start_time)
+
+    print('load data into database finished! time =', time.time() - start_time)
 
 
 def load_covid_detection(covid_detection_input_filepath):
@@ -267,6 +309,9 @@ def load_covid_detection(covid_detection_input_filepath):
     :param covid_detection_input_filepath: Path of covid detection record, suppose the file is an Excel sheet.
     :return:
     """
+    log = open('covid_detection_log.txt', 'a')
+    log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    log.write("start load {}\n".format(covid_detection_input_filepath))
 
     start_time = time.time()
     print('start load raw covid detection records to database...')
@@ -280,16 +325,23 @@ def load_covid_detection(covid_detection_input_filepath):
 
     # load initial data
     covid_detection = pd.read_excel(covid_detection_input_filepath, header=0)
-    print('load raw covid detection finished! time=', time.time() - start_time)
+    print('load raw covid detection finished! time = {}'.format(time.time() - start_time))
+    log.write('load raw covid detection finished! time = {}\n'.format(time.time() - start_time))
 
     # clean data
     covid_detection = covid_detection.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
+    print('clean data finished! time = {}'.format(time.time() - start_time))
+    log.write('clean data finished! time = {}\n'.format(time.time() - start_time))
 
     # output file
+    covid_detection = covid_detection[
+        ['姓名', '出生日期', '年龄', '电话号码', '机构所在地', '采样机构', '采样时间', '检测机构', '检测时间', '检测结果', '检测结果填报时间', '复核结果', '复核机构',
+         '复核时间', '性别', '国家/地区', '居住地', '证件类型', '证件号码', '未提供有效证件原因', '检测人群分类', '应检尽检类别', '导入机构', '样本条形码', '样本类型', '检测项目',
+         '采样点行政区划', '采样地点', '所在学校/单位名称', '备注1', '备注2', '采集类型', '导入时间', '创建人账号', '创建人姓名']]
     covid_detection_out_file_name = 'covid_detection.csv'
     covid_detection.to_csv(covid_detection_out_file_name, header=True, index=False, encoding='utf-8')
-    print('output csv finished! time=', time.time() - start_time)
+    print('output csv finished! time =', time.time() - start_time)
+    log.write('output csv finished! time = {}\n'.format(time.time() - start_time))
 
     # move covid detection records to mysql secure file path
     secure_file_path = database_configs['secure_file_priv']
@@ -297,7 +349,8 @@ def load_covid_detection(covid_detection_input_filepath):
     subp = subprocess.Popen([move_file_command], shell=True, stdin=subprocess.PIPE)
     sudo_password = str.encode(system_configs['password'] + '\n')
     subp.communicate(sudo_password)
-    print('move csv finished! time=', time.time() - start_time)
+    print('move csv finished! time =', time.time() - start_time)
+    log.write('move csv finished! time = {}\n'.format(time.time() - start_time))
 
     # 1. load covid detection records in csv file into a temporary table in database
     # 2. merge records in temporary table into main covid detection records table
@@ -322,14 +375,12 @@ def load_covid_detection(covid_detection_input_filepath):
         cursor.execute(drop_table_sql)
         cursor.execute(create_temporary_table_sql)
         cursor.execute(load_to_temporary_table_sql)
-        print('load data into temporary table finished! time=', time.time() - start_time)
-
-        # no need to update records, just record the sample time
-        # cursor.execute(update_modified_records_sql)
-        # print('update modified records finished! time=', time.time() - start_time)
+        print('load data into temporary table finished! time =', time.time() - start_time)
+        log.write('load data into temporary table finished! time = {}\n'.format(time.time() - start_time))
 
         cursor.execute(add_new_records_sql)
-        print('add new records finished! time=', time.time() - start_time)
+        print('add new records finished! time =', time.time() - start_time)
+        log.write('add new records finished! time = {}\n'.format(time.time() - start_time))
         cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
@@ -337,7 +388,9 @@ def load_covid_detection(covid_detection_input_filepath):
     finally:
         cursor.close()
         conn.close()
-    print('load data into database finished! time=', time.time() - start_time)
+    print('load data into database finished! time =', time.time() - start_time)
+    log.write('load data into database finished! time = {}\n'.format(time.time() - start_time))
+    log.close()
 
 
 def load_return_list(return_list_input_filepath, return_list_date):
@@ -353,7 +406,7 @@ def load_return_list(return_list_input_filepath, return_list_date):
 
     # load initial data
     return_list = pd.read_excel(return_list_input_filepath, header=0)
-    print('load raw return finished! time=', time.time() - start_time)
+    print('load raw return finished! time =', time.time() - start_time)
 
     # selected needed columns and set column names
     return_list = return_list.iloc[:, :10]
@@ -361,12 +414,12 @@ def load_return_list(return_list_input_filepath, return_list_date):
 
     # clean data
     return_list = return_list.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
+    print('clean data finished! time =', time.time() - start_time)
 
     # output file
     return_list_out_file_name = 'return_list.csv'
     return_list.to_csv(return_list_out_file_name, header=True, index=False, encoding='utf-8')
-    print('output csv finished! time=', time.time() - start_time)
+    print('output csv finished! time =', time.time() - start_time)
 
     # move covid detection records to mysql secure file path
     secure_file_path = database_configs['secure_file_priv']
@@ -374,7 +427,7 @@ def load_return_list(return_list_input_filepath, return_list_date):
     subp = subprocess.Popen([move_file_command], shell=True, stdin=subprocess.PIPE)
     sudo_password = str.encode(system_configs['password'] + '\n')
     subp.communicate(sudo_password)
-    print('move csv finished! time=', time.time() - start_time)
+    print('move csv finished! time =', time.time() - start_time)
 
     # 1. load return list in csv file into a temporary table in database
     # 2. add returned records to main covid detection records table
@@ -398,9 +451,9 @@ def load_return_list(return_list_input_filepath, return_list_date):
         cursor.execute(drop_table_sql)
         cursor.execute(create_temporary_table_sql)
         cursor.execute(load_to_temporary_table_sql)
-        print('load data into temporary table finished! time=', time.time() - start_time)
+        print('load data into temporary table finished! time =', time.time() - start_time)
         cursor.execute(add_return_list_sql)
-        print('add return list to covid detection records finished! time=', time.time() - start_time)
+        print('add return list to covid detection records finished! time =', time.time() - start_time)
         cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
@@ -408,7 +461,7 @@ def load_return_list(return_list_input_filepath, return_list_date):
     finally:
         cursor.close()
         conn.close()
-    print('load data into database finished! time=', time.time() - start_time)
+    print('load data into database finished! time =', time.time() - start_time)
 
 
 def load_grid_administrator(grid_administrator_input_filepath):
@@ -421,11 +474,11 @@ def load_grid_administrator(grid_administrator_input_filepath):
 
     # load initial data
     grid_administrator = pd.read_excel(grid_administrator_input_filepath, header=0)
-    print('load raw return finished! time=', time.time() - start_time)
+    print('load raw return finished! time =', time.time() - start_time)
 
     # clean data
     grid_administrator = grid_administrator.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
+    print('clean data finished! time =', time.time() - start_time)
 
     # cat grid administrators info pairs
     values_str = ' '
@@ -449,28 +502,29 @@ def load_grid_administrator(grid_administrator_input_filepath):
         cursor.execute(drop_table_sql)
         cursor.execute(create_table_sql)
         cursor.execute(add_grid_administrators_sql)
-        print('load grid administrators info finished! time=', time.time() - start_time)
+        print('load grid administrators info finished! time =', time.time() - start_time)
         conn.commit()
     except Exception as e:
         print(e)
     finally:
         cursor.close()
         conn.close()
-    print('load data into database finished! time=', time.time() - start_time)
+    print('load data into database finished! time =', time.time() - start_time)
 
 
-def get_split_cell_sqls(location_cell_input_filepath):
+def split_cell(location_cell_input_filepath):
     start_time = time.time()
+
     # load initial data
     location_cell = pd.read_excel(location_cell_input_filepath, header=0)
-    print('load raw return finished! time=', time.time() - start_time)
+    print('load raw return finished! time =', time.time() - start_time)
 
     # selected needed columns and set column names
-    location_cell = location_cell.iloc[:, 6:8]
+    location_cell = location_cell[['楼栋地址', '所属小区']]
 
     # clean data
     location_cell = location_cell.apply(np.vectorize(clean_data))
-    print('clean data finished! time=', time.time() - start_time)
+    print('clean data finished! time =', time.time() - start_time)
 
     # get cells list
     cells = pd.unique(location_cell['所属小区'])
@@ -492,10 +546,25 @@ def get_split_cell_sqls(location_cell_input_filepath):
                 sql += " or 房屋地址 like '%{}%'".format(locations[i])
             sql += ';\n'
             split_cell_sqls.append(sql)
-    return split_cell_sqls
+
+    try:
+        connectionPool = getConnectionPool()
+        conn = connectionPool.get_connection()
+        cursor = conn.cursor()
+
+        for sql in split_cell_sqls:
+            cursor.execute(sql)
+        conn.commit()
+    except Exception as e:
+        print(e)
+    finally:
+        cursor.close()
+        conn.close()
+
+    print('split cell finished! time =', time.time() - start_time)
 
 
-def analyze_data(location_cell_input_filepath):
+def analyze_data():
     start_time = time.time()
     print('start analyze newly imported data...')
 
@@ -506,42 +575,54 @@ def analyze_data(location_cell_input_filepath):
 
     # 1. compute latest sample time into whitelist
     compute_latest_sample_sql = open(analyze_data_sql_dir + 'compute_latest_sample.sql', encoding='utf8').read() + '\n'
-    # 2. update cell
-    split_cell_sqls = get_split_cell_sqls(location_cell_input_filepath)
 
     try:
         conn = connectionPool.get_connection()
         cursor = conn.cursor()
         cursor.execute(compute_latest_sample_sql)
-        print('compute latest sampling time finished! time=', time.time() - start_time)
-
-        for sql in split_cell_sqls:
-            cursor.execute(sql)
-        print('split cell finished! time=', time.time() - start_time)
         conn.commit()
+        print('compute latest sampling time finished! time =', time.time() - start_time)
     except Exception as e:
         print(e)
     finally:
         cursor.close()
         conn.close()
-
-    print('analyze data finished! time=', time.time() - start_time)
+    print('analyze data finished! time =', time.time() - start_time)
 
 
 if __name__ == '__main__':
-    whitelist_paths = ['7.27浪心白名单.xlsx', '8.19浪心白名单.xlsx', '8.24浪心白名单.xlsx', '8.25浪心白名单.xlsx']
-    whitelist_dates = ['2022-07-27', '2022-08-19', '2022-08-24', '2022-08-25']
-    right_order = [0, 1, 2, 3]
-    inverse_order = [3, 2, 1, 0]
-    random_order = [0, 3, 2, 1]
-    
-    for i in [3, 2]:
-        whitelist_date = whitelist_dates[i]
-        whitelist_filepath = whitelist_paths[i]
-        print("loading", whitelist_filepath)
+    whitelist_dir = 'raw_data/白名单/'
+    whitelist_filenames = ['2022-07-27_浪心白名单.xlsx', '2022-08-19_浪心白名单.xlsx', '2022-08-24_浪心白名单.xlsx',
+                           '2022-08-25_浪心白名单.xlsx', '2022-09-08_白名单.xlsx', '2022-09-09_白名单.xlsx',
+                           '2022-09-13_白名单.xlsx', '2022-09-14_白名单.xlsx', '2022-09-15_白名单.xlsx',
+                           '2022-09-16_白名单.xlsx', '2022-09-18_白名单.xlsx', '2022-09-19_白名单.xlsx',
+                           '2022-09-20_白名单.xlsx', '2022-09-21_白名单.xlsx']
+    whitelist_right_order = [i for i in range(len(whitelist_filenames))]
+    whitelist_inverse_order = whitelist_right_order[::-1]
+    whitelist_random_order = [0, 4, 11, 3, 13, 9, 2, 6, 12, 7, 1, 10, 5, 8]
+
+    covid_detection_dir = 'raw_data/核酸/'
+    covid_detection_filenames = ['2022-09-08_核酸.xlsx', '2022-09-09_核酸.xlsx', '2022-09-10_核酸.xlsx',
+                                 '2022-09-11_核酸.xlsx', '2022-09-12_核酸.xlsx', '2022-09-13_核酸.xlsx',
+                                 '2022-09-14_核酸.xlsx', '2022-09-15_核酸.xlsx', '2022-09-16_核酸.xlsx',
+                                 '2022-09-17_核酸.xlsx', '2022-09-18_核酸.xlsx', '2022-09-19_核酸.xlsx',
+                                 '2022-09-20_核酸.xlsx']
+    covid_detection_right_order = [i for i in range(len(covid_detection_filenames))]
+    covid_detection_inverse_order = covid_detection_right_order[::-1]
+    # random_order = [0, 4, 11, 3, 13, 9, 2, 6, 12, 7, 1, 10, 5, 8]
+
+    for i in whitelist_right_order:
+        whitelist_date = whitelist_filenames[i].split('_')[0]
+        whitelist_filepath = whitelist_dir + whitelist_filenames[i]
+        print("\nloading", whitelist_filepath)
         load_whitelist(whitelist_filepath, whitelist_date)
     print('load whitelist finished!\n')
 
+    # for i in range(1, len(covid_detection_filenames)):
+    #     covid_detection_filepath = covid_detection_dir + covid_detection_filenames[i]
+    #     print("\nloading", covid_detection_filepath)
+    #     load_covid_detection(covid_detection_filepath)
+    # print('load covid detection finished!\n')
     # covid_detection_filepath = 'covid_detection.xlsx'
     # load_covid_detection(covid_detection_filepath)
     # print('load covid detection finished!\n')
@@ -559,5 +640,8 @@ if __name__ == '__main__':
     # print('load grid administrator finished!')
 
     # location_cell_filepath = 'location_cell.xlsx'
-    # analyze_data(location_cell_filepath)
+
+    # split_cell(location_cell_filepath, db)
+
+    # analyze_data()
     # print('analyze newly imported data finished!')

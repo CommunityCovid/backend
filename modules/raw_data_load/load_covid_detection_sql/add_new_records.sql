@@ -11,10 +11,10 @@ select ncdr.`姓名`,ncdr.`出生日期`,ncdr.`年龄`,ncdr.`电话号码`,ncdr.
        ncdr.`备注1`,ncdr.`备注2`,ncdr.`采集类型`,ncdr.`导入时间`,ncdr.`创建人账号`,ncdr.`创建人姓名`
 from
     langxin_community.covid_detection_records cdr right join
-    (select * from langxin_community.new_covid_detection_records
-    where id in (select min(id) from langxin_community.new_covid_detection_records group by 证件号码, 采样时间)) ncdr
+    langxin_community.new_covid_detection_records ncdr
 on
     cdr.证件号码 = ncdr.证件号码 and
     cdr.采样时间 = ncdr.采样时间
 where
-    cdr.id is NULL;
+    cdr.id is NULL and
+    ncdr.id in (select min(id) from langxin_community.new_covid_detection_records group by 证件号码, 采样时间);

@@ -30,7 +30,6 @@ CREATE TABLE IF NOT EXISTS langxin_community.residents_accumulative (
     `审核人` VARCHAR(20),
     `审核时间` DATETIME,
     `上报类型` VARCHAR(20),
-    `是否在白名单` VARCHAR(2) DEFAULT '是',
     `是否在灰名单` VARCHAR(2) DEFAULT '否',
     `灰名单类型` INT,
     `灰名单原因` VARCHAR(100),
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS langxin_community.residents_accumulative (
     `移出白名单时间` DATETIME,
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`),
-    INDEX idx_insert_time(`审核时间`),
-    INDEX idx_remove_time(`移出白名单时间`),
-    INDEX idx_location(`房屋地址`)
+    INDEX idx_add_time(`加入白名单时间`),
+    INDEX idx_house_position(`房屋地址`),
+    INDEX idx_house_code(`房屋编码`)
 ) DEFAULT CHARSET=utf8;

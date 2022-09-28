@@ -242,7 +242,7 @@ def load_whitelist_accumulative(whitelist_input_filepath, whitelist_date):
     update_latest_sample_sql = open(load_whitelist_accumulative_sql_dir + 'update_latest_sample.sql',
                                     encoding='utf8').read() + '\n'
     update_latest_sample_sql = update_latest_sample_sql.replace('{date}', whitelist_date)
-    split_cell_sql = open(load_whitelist_accumulative_sql_dir + 'split_cell.sql', encoding='utf8').read() + '\n'
+    split_cell_sql = open(load_whitelist_accumulative_sql_dir + 'split_cell_sql', encoding='utf8').read() + '\n'
     add_gray_list_not_related2age_sql = open(load_whitelist_accumulative_sql_dir + 'add_gray_list_not_related2age.sql',
                                              encoding='utf8').read() + '\n'
     add_gray_list_related2age_sql = open(load_whitelist_accumulative_sql_dir + 'add_gray_list_related2age.sql',
@@ -395,9 +395,9 @@ def load_gray_list(gray_list_input_filepath):
                                        encoding='utf8').read() + '\n'
     load_to_temporary_table_sql = load_to_temporary_table_sql.replace('secure_file_priv',
                                                                       database_configs['secure_file_priv'])
-    # remove_all_gray_list_sql = open(load_gray_list_sql_dir + 'remove_all_gray_list.sql').read() + '\n'
-    # add_gray_list_not_related2age_sql = open(load_gray_list_sql_dir + 'add_gray_list_not_related2age.sql').read() + '\n'
-    # add_gray_list_related2age_sql = open(load_gray_list_sql_dir + 'add_gray_list_related2age.sql').read() + '\n'
+    remove_all_gray_list_sql = open(load_gray_list_sql_dir + 'remove_all_gray_list.sql').read() + '\n'
+    add_gray_list_not_related2age_sql = open(load_gray_list_sql_dir + 'add_gray_list_not_related2age.sql').read() + '\n'
+    add_gray_list_related2age_sql = open(load_gray_list_sql_dir + 'add_gray_list_related2age.sql').read() + '\n'
 
     connectionPool = getConnectionPool()
     conn = None
@@ -406,17 +406,17 @@ def load_gray_list(gray_list_input_filepath):
     try:
         conn = connectionPool.get_connection()
         cursor = conn.cursor()
-        cursor.execute(drop_table_sql)
-        cursor.execute(create_temporary_table_sql)
-        cursor.execute(load_to_temporary_table_sql)
+        # cursor.execute(drop_table_sql)
+        # cursor.execute(create_temporary_table_sql)
+        # cursor.execute(load_to_temporary_table_sql)
         print('load data into temporary table finished! time =', time.time() - start_time)
         log.write('load data into temporary table finished! time = {}\n'.format(time.time() - start_time))
 
-        # cursor.execute(remove_all_gray_list_sql)
-        # cursor.execute(add_gray_list_not_related2age_sql)
-        # cursor.execute(add_gray_list_related2age_sql)
-        # print('update gray list finished! time =', time.time() - start_time)
-        # log.write('update gray list finished! time = {}\n'.format(time.time() - start_time))
+        cursor.execute(remove_all_gray_list_sql)
+        cursor.execute(add_gray_list_not_related2age_sql)
+        cursor.execute(add_gray_list_related2age_sql)
+        print('update gray list finished! time =', time.time() - start_time)
+        log.write('update gray list finished! time = {}\n'.format(time.time() - start_time))
         # cursor.execute(drop_table_sql)
         conn.commit()
     except Exception as e:
@@ -701,6 +701,67 @@ def load_cell_rules(cell_rules_input_filepath):
         conn.close()
     print('load data into database finished! time =', time.time() - start_time)
     log.write('load data into database finished! time = {}\n'.format(time.time() - start_time))
+
+
+def split_cell(location_cell_input_filepath):
+    log = open('log/split_cell_log.txt', 'a')
+    log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    log.write("start load {}\n".format(location_cell_input_filepath))
+
+    start_time = time.time()
+
+    # load initial data
+    location_cell = pd.read_excel(location_cell_input_filepath, header=0)
+    print('load raw cell data finished! time =', time.time() - start_time)
+    log.write('load raw cell data finished! time = {}\n'.format(time.time() - start_time))
+
+    # selected needed columns and set column names
+    location_cell = location_cell[['楼栋地址', '所属小区']]
+
+    # clean data
+    location_cell = location_cell.apply(np.vectorize(clean_data))
+    print('clean data finished! time =', time.time() - start_time)
+    log.write('clean data finished! time = {}\n'.format(time.time() - start_time))
+
+    # get cells list
+    cells = pd.unique(location_cell['所属小区'])
+
+    # split locations into corresponding cell
+    cell_location_dic = {}
+    for cell in cells:
+        cell_location_dic[cell] = []
+    for index, row in location_cell.iterrows():
+        cell_location_dic[row['所属小区']].append(row['楼栋地址'])
+
+    # create SQLs to split cell
+    split_cell_sqls = []
+    for cell in cells:
+        locations = cell_location_dic[cell]
+        if len(locations) > 0:
+            sql = "update langxin_community.residents_accumulative set 小区 = " \
+                  "'{}' where 房屋地址 like '%{}%' and 小区 is null".format(cell, locations[0])
+            for i in range(1, len(locations)):
+                sql += " or 房屋地址 like '%{}%'".format(locations[i])
+            sql += ';\n'
+            split_cell_sqls.append(sql)
+
+    try:
+        connectionPool = getConnectionPool()
+        conn = connectionPool.get_connection()
+        cursor = conn.cursor()
+
+        for i in tqdm(range(len(split_cell_sqls))):
+            sql = split_cell_sqls[i]
+            cursor.execute(sql)
+        conn.commit()
+    except Exception as e:
+        print(e)
+    finally:
+        cursor.close()
+        conn.close()
+
+    print('split cell finished! time =', time.time() - start_time)
+    log.write('split cell finished! time = {}\n'.format(time.time() - start_time))
 
 
 def analyze_data():

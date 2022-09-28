@@ -94,7 +94,11 @@ def whitelist_covid_detection_test(cp):
 
 def whitelist_accumulative_covid_detection_test(cp):
     covid_detection_dates = {'2022-09-16', '2022-09-18', '2022-09-19', '2022-09-20'}
-    covid_detection_ground_truth = {1: {'2022-09-16': 46435, '2022-09-18': 52352, '2022-09-19': 43078, '2022-09-20': 41949}}
+    covid_detection_ground_truth = {1: {'2022-09-16': 46435, '2022-09-18': 52352, '2022-09-19': 43078, '2022-09-20': 41949},
+                                    2: {'2022-09-20': 47956},
+                                    3: {'2022-09-20': 60574},
+                                    5: {'2022-09-20': 62157},
+                                    7: {'2022-09-20': 62734}}
 
     sql = '''
     select count(*) from residents_accumulative

@@ -1,0 +1,1 @@
+delete from langxin_community.residents_accumulative where 加入白名单时间 < DATE_SUB('{date}', INTERVAL 30 DAY);

@@ -245,6 +245,9 @@ def load_whitelist_accumulative(whitelist_input_filepath, whitelist_date, db):
     add_coming_people_sql = open(load_whitelist_accumulative_sql_dir + 'add_coming_people.sql',
                                  encoding='utf8').read() + '\n'
     add_coming_people_sql = add_coming_people_sql.replace('{date}', whitelist_date)
+    remove_expired_records_sql = open(load_whitelist_accumulative_sql_dir + 'remove_expired_records.sql',
+                                      encoding='utf8').read() + '\n'
+    remove_expired_records_sql = remove_expired_records_sql.replace('{date}', whitelist_date)
 
     cursor = db.connection.cursor()
 
@@ -271,6 +274,9 @@ def load_whitelist_accumulative(whitelist_input_filepath, whitelist_date, db):
         print('add newly coming people finished! time =', time.time() - start_time)
         log.write('add newly coming people finished! time = {}\n'.format(time.time() - start_time))
         cursor.execute(drop_table_sql)
+        cursor.execute(remove_expired_records_sql)
+        print('remove expired records finished! time =', time.time() - start_time)
+        log.write('remove expired records finished! time = {}\n'.format(time.time() - start_time))
         db.connection.commit()
     except Exception as e:
         print(e)
@@ -472,6 +478,9 @@ def load_covid_detection(covid_detection_input_filepath, covid_detection_date, d
     update_latest_sample_sql = update_latest_sample_sql.replace('{date}', covid_detection_date)
     add_new_records_sql = open(load_covid_detection_sql_dir + 'add_new_records.sql', encoding='utf8').read() + '\n'
     add_new_records_sql = add_new_records_sql.replace('{date}', covid_detection_date)
+    remove_expired_records_sql = open(load_covid_detection_sql_dir + 'remove_expired_records.sql',
+                                      encoding='utf8').read() + '\n'
+    remove_expired_records_sql = remove_expired_records_sql.replace('{date}', covid_detection_date)
 
     cursor = db.connection.cursor()
 
@@ -488,6 +497,9 @@ def load_covid_detection(covid_detection_input_filepath, covid_detection_date, d
         print('add new records finished! time =', time.time() - start_time)
         log.write('add new records finished! time = {}\n'.format(time.time() - start_time))
         cursor.execute(drop_table_sql)
+        cursor.execute(remove_expired_records_sql)
+        print('remove expired records finished! time =', time.time() - start_time)
+        log.write('remove expired records finished! time = {}\n'.format(time.time() - start_time))
         db.connection.commit()
     except Exception as e:
         print(e)

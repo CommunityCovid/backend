@@ -44,6 +44,7 @@ CREATE TABLE residents (
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`),
     INDEX idx_insert_time(`审核时间`),
+    INDEX idx_add_time(`加入白名单时间`),
     INDEX idx_remove_time(`移出白名单时间`),
     INDEX idx_location(`房屋地址`)
 ) DEFAULT CHARSET=utf8;

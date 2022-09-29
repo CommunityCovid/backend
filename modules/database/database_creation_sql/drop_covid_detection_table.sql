@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS langxin_community.covid_detection_records;

@@ -1,8 +1,9 @@
-CREATE TABLE langxin_community.new_residents (
+CREATE TABLE IF NOT EXISTS langxin_community.residents_accumulative (
     `id` INT UNSIGNED AUTO_INCREMENT,
     `街道` VARCHAR(20),
     `社区` VARCHAR(20),
     `网格` VARCHAR(20),
+    `小区` VARCHAR(20),
     `所居住花园小区/城中村名称` VARCHAR(40),
     `所属电子哨兵卡口名称` VARCHAR(100),
     `姓名` VARCHAR(100),
@@ -29,9 +30,15 @@ CREATE TABLE langxin_community.new_residents (
     `审核人` VARCHAR(20),
     `审核时间` DATETIME,
     `上报类型` VARCHAR(20),
-    `是否在白名单` VARCHAR(2) DEFAULT '是',
     `是否在灰名单` VARCHAR(2) DEFAULT '否',
-    `上次核酸检测时间` DATETIME DEFAULT NULL,
+    `灰名单类型` INT,
+    `灰名单原因` VARCHAR(100),
+    `上次核酸检测时间` DATETIME,
+    `加入白名单时间` DATETIME,
+    `移出白名单时间` DATETIME,
     PRIMARY KEY (`id`),
-    INDEX idx_rid(`证件号码`)
+    INDEX idx_rid(`证件号码`),
+    INDEX idx_add_time(`加入白名单时间`),
+    INDEX idx_house_position(`房屋地址`),
+    INDEX idx_house_code(`房屋编码`)
 ) DEFAULT CHARSET=utf8;

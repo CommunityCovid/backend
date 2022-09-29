@@ -3,8 +3,7 @@ from mysql.connector import pooling
 import yaml
 from yaml import SafeLoader
 
-config_filepath = '../../config.yaml'
-
+config_filepath = 'config.yaml'
 
 # To use connection pool
 # 1.first call getConnectionPool to obtain a connection pool.

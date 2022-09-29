@@ -429,7 +429,7 @@ def load_gray_list(gray_list_input_filepath):
     log.write('load data into database finished! time = {}\n'.format(time.time() - start_time))
 
 
-def load_covid_detection(covid_detection_input_filepath):
+def load_covid_detection(covid_detection_input_filepath, covid_detection_date):
     """
     load covid detection records into database.
     :param covid_detection_input_filepath: Path of covid detection record, suppose the file is an Excel sheet.
@@ -487,13 +487,13 @@ def load_covid_detection(covid_detection_input_filepath):
                                        encoding='utf8').read() + '\n'
     load_to_temporary_table_sql = load_to_temporary_table_sql.replace('secure_file_priv',
                                                                       database_configs['secure_file_priv'])
-    # update_modified_records_sql = open(load_covid_detection_sql_dir + 'update_modified_records.sql',
-    #                                    encoding='utf8').read() + '\n'
+    update_latest_sample_sql = open(load_covid_detection_sql_dir + 'update_latest_sample.sql',
+                                    encoding='utf8').read() + '\n'
+    update_latest_sample_sql = update_latest_sample_sql.replace('{date}', covid_detection_date)
     add_new_records_sql = open(load_covid_detection_sql_dir + 'add_new_records.sql', encoding='utf8').read() + '\n'
+    add_new_records_sql = add_new_records_sql.replace('{date}', covid_detection_date)
 
     connectionPool = getConnectionPool()
-    conn = None
-    cursor = None
 
     try:
         conn = connectionPool.get_connection()
@@ -503,7 +503,9 @@ def load_covid_detection(covid_detection_input_filepath):
         cursor.execute(load_to_temporary_table_sql)
         print('load data into temporary table finished! time =', time.time() - start_time)
         log.write('load data into temporary table finished! time = {}\n'.format(time.time() - start_time))
-
+        cursor.execute(update_latest_sample_sql)
+        print('update latest sample time in whitelist finished! time =', time.time() - start_time)
+        log.write('update latest sample time in whitelist finished! time = {}\n'.format(time.time() - start_time))
         cursor.execute(add_new_records_sql)
         print('add new records finished! time =', time.time() - start_time)
         log.write('add new records finished! time = {}\n'.format(time.time() - start_time))
@@ -763,18 +765,19 @@ if __name__ == '__main__':
     #     load_whitelist(whitelist_filepath, whitelist_date)
     # print('load whitelist finished!\n')
 
-    for i in [12]:
-        whitelist_date = whitelist_filenames[i].split('_')[0]
-        whitelist_filepath = whitelist_dir + whitelist_filenames[i]
-        print("\nloading", whitelist_filepath)
-        load_whitelist_accumulative(whitelist_filepath, whitelist_date)
-    print('load whitelist finished!\n')
+    # for i in [11]:
+    #     whitelist_date = whitelist_filenames[i].split('_')[0]
+    #     whitelist_filepath = whitelist_dir + whitelist_filenames[i]
+    #     print("\nloading", whitelist_filepath)
+    #     load_whitelist_accumulative(whitelist_filepath, whitelist_date)
+    # print('load whitelist finished!\n')
 
-    # for i in covid_detection_random_order:
-    #     covid_detection_filepath = covid_detection_dir + covid_detection_filenames[i]
-    #     print("\nloading", covid_detection_filepath)
-    #     load_covid_detection(covid_detection_filepath)
-    # print('load covid detection finished!\n')
+    for i in [11]:
+        covid_detection_date = covid_detection_filenames[i].split('_')[0]
+        covid_detection_filepath = covid_detection_dir + covid_detection_filenames[i]
+        print("\nloading", covid_detection_filepath)
+        load_covid_detection(covid_detection_filepath, covid_detection_date)
+    print('load covid detection finished!\n')
 
     # gray_list_filepath = 'raw_data/gray_list.xlsx'
     # load_gray_list(gray_list_filepath)

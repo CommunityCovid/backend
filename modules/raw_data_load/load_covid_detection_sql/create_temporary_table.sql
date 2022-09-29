@@ -38,6 +38,5 @@ CREATE TABLE langxin_community.new_covid_detection_records (
     `创建人姓名` VARCHAR(40),
     PRIMARY KEY (`id`),
     INDEX idx_rid(`证件号码`),
-    INDEX idx_sample_time(`采样时间`),
-    INDEX idx_detection_result_time(`检测结果填报时间`)
+    INDEX idx_sample_time(`采样时间`)
 ) DEFAULT CHARSET=utf8;

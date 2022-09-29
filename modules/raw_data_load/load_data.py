@@ -1,3 +1,4 @@
+import os.path
 import subprocess
 import time
 import datetime
@@ -8,6 +9,7 @@ from yaml import SafeLoader
 
 # global variables
 config_filepath = 'config.yaml'
+load_data_log_dir = 'modules/raw_data_load/log/'
 load_whitelist_sql_dir = 'modules/raw_data_load/load_whitelist_sql/'
 load_whitelist_accumulative_sql_dir = 'modules/raw_data_load/load_whitelist_accumulative_sql/'
 load_covid_detection_sql_dir = 'modules/raw_data_load/load_covid_detection_sql/'
@@ -52,7 +54,9 @@ def load_whitelist(whitelist_input_filepath, whitelist_date, db):
     :param whitelist_input_filepath: Path of whitelist file, suppose the file is an Excel sheet.
     :return: None
     """
-    log = open('log/whitelist_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'whitelist_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(whitelist_input_filepath))
 
@@ -170,7 +174,9 @@ def load_whitelist_accumulative(whitelist_input_filepath, whitelist_date, db):
     :param whitelist_input_filepath: Path of whitelist file, suppose the file is an Excel sheet.
     :return: None
     """
-    log = open('log/whitelist_accumulative_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'whitelist_accumulative_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(whitelist_input_filepath))
 
@@ -333,7 +339,9 @@ def load_gray_list(gray_list_input_filepath, db):
     :param gray_list_input_filepath:
     :return:
     """
-    log = open('log/gray_list_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'gray_list_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(gray_list_input_filepath))
 
@@ -405,7 +413,9 @@ def load_covid_detection(covid_detection_input_filepath, covid_detection_date, d
     :param covid_detection_input_filepath: Path of covid detection record, suppose the file is an Excel sheet.
     :return:
     """
-    log = open('log/covid_detection_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'covid_detection_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(covid_detection_input_filepath))
 
@@ -489,7 +499,9 @@ def load_covid_detection(covid_detection_input_filepath, covid_detection_date, d
 
 
 def load_return_list(return_list_input_filepath, return_list_date, db):
-    log = open('log/return_list_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'return_list_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(return_list_input_filepath))
 
@@ -566,7 +578,9 @@ def load_return_list(return_list_input_filepath, return_list_date, db):
 
 
 def load_grid_administrator(grid_administrator_input_filepath, db):
-    log = open('log/grid_administrator_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'grid_administrator_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(grid_administrator_input_filepath))
 
@@ -613,7 +627,9 @@ def load_grid_administrator(grid_administrator_input_filepath, db):
 
 
 def load_cell_rules(cell_rules_input_filepath, db):
-    log = open('log/cell_rules_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'cell_rules_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     log.write("start load {}\n".format(cell_rules_input_filepath))
 
@@ -662,7 +678,9 @@ def load_cell_rules(cell_rules_input_filepath, db):
 
 
 def analyze_data(db):
-    log = open('log/analyze_log.txt', 'a')
+    if not os.path.exists(load_data_log_dir):
+        os.mkdir(load_data_log_dir)
+    log = open(load_data_log_dir + 'analyze_log.txt', 'a')
     log.write("\n{}\n".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     start_time = time.time()

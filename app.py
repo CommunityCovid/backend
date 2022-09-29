@@ -25,11 +25,15 @@ CORS(app)
 
 db_server = None
 
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'root'
-app.config['MYSQL_HOST'] = '10.20.4.104'
-app.config['MYSQL_DB'] = 'langxin_community'
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+config_filepath = 'config.yaml'
+with open(config_filepath) as config_file:
+    config_data = yaml.load(config_file, Loader=SafeLoader)
+    database_configs = config_data['database']
+    app.config['MYSQL_USER'] = database_configs['user']
+    app.config['MYSQL_PASSWORD'] = database_configs['password']
+    app.config['MYSQL_HOST'] = database_configs['host']
+    app.config['MYSQL_DB'] = database_configs['database']
+    app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 db = MySQL(app)
 
@@ -52,8 +56,7 @@ def get_community_cnt():
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=record_limit)
     total_cnt = get_whitelist_num(db, date, date_next)
-    finished_cnt = get_finished_num(db, date, date_next, date_record)
-    print(total_cnt, finished_cnt)
+    finished_cnt = get_finished_num(db, date, record_limit)
     return jsonify(
         {"totalCount": int(total_cnt),
          "finishedCnt": int(finished_cnt)
@@ -70,7 +73,7 @@ def get_community_grey_cnt():
     date_record = date_tmp - datetime.timedelta(days=record_limit)
 
     total_cnt = get_greylist_num(db, date, date_next)
-    finished_cnt = get_finished_grey_num(db, date, date_next, date_record)
+    finished_cnt = get_finished_grey_num(db, date,record_limit)
 
     return jsonify(
         {"totalCount": int(total_cnt),
@@ -86,8 +89,8 @@ def get_grids_cnt():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=record_limit)
-    grids_total_cnt = get_grid_whitelist(db, date_tmp)
-    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next, date_record)
+    grids_total_cnt = get_grid_whitelist(db, date)
+    grid_finish_cnt = get_grid_finished(db, date, record_limit)
 
     grid_info_map = {}
     for item in grids_total_cnt:
@@ -110,8 +113,8 @@ def get_grids_grey_cnt():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=record_limit)
-    grids_total_cnt = get_grid_grey_whitelist(db, date_tmp)
-    grid_finish_cnt = get_grid_grey_finished(db, date_tmp, date_next, date_record)
+    grids_total_cnt = get_grid_grey_whitelist(db, date)
+    grid_finish_cnt = get_grid_grey_finished(db, date, record_limit)
 
     grid_info_map = {}
     for item in grids_total_cnt:
@@ -135,8 +138,8 @@ def get_grid_cnt():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=int(record_limit))
-    grids_total_cnt = get_grid_whitelist(db, date_tmp)
-    grid_finish_cnt = get_grid_finished(db, date_tmp, date_next, date_record)
+    grids_total_cnt = get_grid_whitelist(db, date)
+    grid_finish_cnt = get_grid_finished(db, date, int(record_limit))
 
     total_cnt, finished_cnt = 0, 0
 
@@ -161,8 +164,8 @@ def get_grid_grey_cnt():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=int(record_limit))
-    grids_total_cnt = get_grid_grey_whitelist(db, date_tmp)
-    grid_finish_cnt = get_grid_grey_finished(db, date_tmp, date_next, date_record)
+    grids_total_cnt = get_grid_grey_whitelist(db, date)
+    grid_finish_cnt = get_grid_grey_finished(db, date, int(record_limit))
 
     total_cnt, finished_cnt = 0, 0
 
@@ -189,7 +192,9 @@ def get_whitelist():
 
 @app.route('/api/getGreyListPeople', methods=['POST', 'GET'])
 def get_grey_list_people():
-    grey_list = get_grey_list(db=db)
+    params = request.json
+    date = params["date"]
+    grey_list = get_grey_list(db=db, date=date)
 
     values = []
     for item in grey_list:
@@ -203,7 +208,7 @@ def get_grid_people():
     grid = params["grid"]
     date = params["date"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
-    whitelist = get_grid_whitelist_people(db, date_tmp, grid)
+    whitelist = get_grid_whitelist_people(db, date, grid)
     values = []
     for item in whitelist:
         values.append([item[key] for key in residents_columns])
@@ -216,7 +221,7 @@ def get_grid_grey_people():
     grid = params["grid"]
     date = params["date"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
-    whitelist = get_grid_greylist_people(db, date_tmp, grid)
+    whitelist = get_grid_greylist_people(db, date, grid)
     values = []
     for item in whitelist:
         values.append([item[key] for key in residents_columns])
@@ -227,26 +232,23 @@ def get_grid_grey_people():
 def upload_file():
     file = request.files.get("file")
     file_name = request.form.get("name")
+    if not os.path.exists('data'):
+        os.mkdir('data')
     file.save(f"data/{file_name}")
     date = file_name.split("_")[0]
-    # load_data_cmd = "python3 modules/raw_data_load/load_data.py"
-    # subp = subprocess.Popen([load_data_cmd], shell=True, stdin=subprocess.PIPE)
-    # subp.communicate()
     if "白名单" in file_name:
-        load_whitelist(f"data/{file_name}", date, db)
-        analyze_data(db)
+        load_whitelist_accumulative(f"data/{file_name}", date, db)
     elif "核酸" in file_name:
-        load_covid_detection(f"data/{file_name}", db)
-        analyze_data(db)
+        load_covid_detection(f"data/{file_name}", date, db)
     elif "灰名单" in file_name:
         load_gray_list(f"data/{file_name}", db)
     elif "小区" in file_name:
-        split_cell(f"data/{file_name}", db)
+        load_cell_rules(f"data/{file_name}", db)
     elif "网格" in file_name:
         load_grid_administrator(f"data/{file_name}", db)
-    elif "回流数据" in file_name:
-        load_return_list(f"data/{file_name}", date, db)
-        analyze_data(db)
+    # elif "回流数据" in file_name:
+    #     load_return_list(f"data/{file_name}", date, db)
+    #     analyze_data(db)
 
     # logging.info(f"receive and store file {file_name} in './data'")
     return jsonify({}, 200, {"Content-Type": "application/json"})
@@ -258,7 +260,7 @@ def get_records():
     date = params["date"]
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
-    data = get_records_position(db, date_tmp, date_next)
+    data = get_records_position(db, date, date_next)
     position = []
     timesMap = {}
     for item in data:
@@ -278,7 +280,7 @@ def get_records():
         for i in range(24):
             res[p][i] = 0
         for t in times:
-            res[p][t - 1] += 1
+            res[p][t] += 1
     return jsonify({"heatMap": res, "position": position}, 200, {"Content-Type": "application/json"})
 
 
@@ -290,7 +292,7 @@ def get_grids_time_info():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     record_limit = date_tmp - datetime.timedelta(days=limit_record)
-    data = get_grids_record_time(db, date_tmp, record_limit)
+    data = get_grids_record_time(db, date, record_limit)
     times_map = {}
     positions = []
     for item in data:
@@ -301,7 +303,7 @@ def get_grids_time_info():
         time_hour = int(item["上次核酸检测时间"].hour)
         times_map[p][time_hour - 1] += 1
     if len(positions) == 0:
-        grids = get_grids(db, date_tmp)
+        grids = get_grids(db, date)
         for g in grids:
             positions.append(g["网格"])
             times_map[g["网格"]] = [0 for _ in range(24)]
@@ -317,8 +319,8 @@ def get_housings_cnt():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     date_record = date_tmp - datetime.timedelta(days=record_limit)
-    grids_total_cnt = get_housings_whitelist(db, date_tmp)
-    grid_finish_cnt = get_housing_finished(db, date_tmp, date_next, date_record)
+    grids_total_cnt = get_housings_whitelist(db, date)
+    grid_finish_cnt = get_housing_finished(db, date, record_limit)
 
     grid_info_map = {}
     for item in grids_total_cnt:
@@ -341,7 +343,7 @@ def get_housing_time_info():
     date_tmp = datetime.datetime.strptime(date, '%Y-%m-%d')
     date_next = date_tmp + datetime.timedelta(days=1)
     record_limit = date_tmp - datetime.timedelta(days=limit_record)
-    data = get_housing_record_time(db, date_tmp, record_limit)
+    data = get_housing_record_time(db, date, record_limit)
     times_map = {}
     positions = []
     for item in data:
@@ -352,7 +354,7 @@ def get_housing_time_info():
         time_hour = int(item["上次核酸检测时间"].hour)
         times_map[p][time_hour - 1] += 1
     if len(positions) == 0:
-        housing = get_housing(db, date_tmp)
+        housing = get_housing(db)
         for g in housing:
             positions.append(g["小区"])
             times_map[g["小区"]] = [0 for _ in range(24)]
@@ -367,8 +369,8 @@ def get_export_report():
     parsed_date = datetime.datetime.strptime(date, '%Y-%m-%d')
     record_limit = parsed_date - datetime.timedelta(days=1)
 
-    grids_total_cnt = get_grid_whitelist(db, parsed_date)
-    data = get_grids_record_time(db, parsed_date, record_limit)
+    grids_total_cnt = get_grid_whitelist(db, date)
+    data = get_grids_record_time(db, date, record_limit)
     grids_charges = get_grids_charge(db)
     times_map, positions = {}, []
     for item in data:
@@ -410,8 +412,8 @@ def get_export_report():
     # worksheet.write_string(0, 0, f'{date}浪心社区网格统计情况')
     writer.save()
 
-    community_total_cnt = get_community_whitelist(db, parsed_date)
-    community_data = get_community_record_time(db, parsed_date, record_limit)
+    community_total_cnt = get_community_whitelist(db, date)
+    community_data = get_community_record_time(db, date, record_limit)
     community_time_map, people_num_map, communities = {}, {}, []
     for item in community_data:
         p = item["小区"]
@@ -445,7 +447,6 @@ def get_export_report():
     community_writer = pd.ExcelWriter(f'reports/{date}浪心社区小区统计情况.xlsx')
     community_report.to_excel(community_writer, startcol=0, startrow=0, index=False)
     community_writer.save()
-
     return jsonify(1, 200, {"Content-Type": "application/json"})
 
 

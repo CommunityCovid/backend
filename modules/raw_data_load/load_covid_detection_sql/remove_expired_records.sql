@@ -1,0 +1,1 @@
+delete from langxin_community.covid_detection_records where 采样时间 < DATE_SUB('{date}', INTERVAL 20 DAY);

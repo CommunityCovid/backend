@@ -65,7 +65,7 @@ def load_whitelist(whitelist_input_filepath, whitelist_date, db):
 
     # load config data
     system_configs, database_configs = None, None
-    with open(config_filepath) as config_file:
+    with open(config_filepath, encoding='utf8') as config_file:
         config_data = yaml.load(config_file, Loader=SafeLoader)
         database_configs = config_data['database']
         system_configs = config_data['system']
@@ -184,14 +184,16 @@ def load_whitelist_accumulative(whitelist_input_filepath, whitelist_date, db):
     print('start load raw whitelist to database...')
 
     # load config data
-    system_configs, database_configs = None, None
-    with open(config_filepath) as config_file:
+    system_configs, database_configs, data_configs = None, None, None
+    with open(config_filepath, encoding='utf8') as config_file:
         config_data = yaml.load(config_file, Loader=SafeLoader)
         database_configs = config_data['database']
         system_configs = config_data['system']
+        data_configs = config_data['data']
 
     # load initial data
     whitelist = pd.read_excel(whitelist_input_filepath, header=0)
+    whitelist = whitelist[data_configs['whitelist']['input_cloumn_names']]
     print('load raw whitelist finished! time =', time.time() - start_time)
     log.write('load raw whitelist finished! time = {}\n'.format(time.time() - start_time))
 
@@ -201,10 +203,11 @@ def load_whitelist_accumulative(whitelist_input_filepath, whitelist_date, db):
     log.write('clean data finished! time = {}\n'.format(time.time() - start_time))
 
     # output file
-    whitelist = whitelist[
-        ['街道', '社区', '网格', '所居住花园小区/城中村名称', '所属电子哨兵卡口名称', '姓名', '性别', '人员类型', '证件类型', '证件号码', '出生年月', '手机号码', '国籍',
-         '是否暂离', '户籍地址', '工作单位所在市', '工作单位所在行政区', '工作单位名称', '工作单位地址', '是否纳入市网格办统计', '楼栋地址', '楼栋编码', '房屋地址', '房屋编码', '备注',
-         '审核结果', '审核人', '审核时间', '上报类型']]
+    whitelist.columns = ['街道', '社区', '网格', '所居住花园小区/城中村名称', '所属电子哨兵卡口名称', '姓名', '性别', '人员类型', '证件类型', '证件号码', '出生年月',
+                         '手机号码', '国籍',
+                         '是否暂离', '户籍地址', '工作单位所在市', '工作单位所在行政区', '工作单位名称', '工作单位地址', '是否纳入市网格办统计', '楼栋地址', '楼栋编码',
+                         '房屋地址', '房屋编码', '备注',
+                         '审核结果', '审核人', '审核时间', '上报类型']
     whitelist = whitelist[whitelist['是否暂离'].isin(['正常', '否'])]
     whitelist_out_file_name = 'whitelist.csv'
     whitelist.to_csv(whitelist_out_file_name, header=True, index=False, encoding='utf-8')
@@ -356,7 +359,7 @@ def load_gray_list(gray_list_input_filepath, db):
 
     # load config data
     system_configs, database_configs = None, None
-    with open(config_filepath) as config_file:
+    with open(config_filepath, encoding='utf8') as config_file:
         config_data = yaml.load(config_file, Loader=SafeLoader)
         database_configs = config_data['database']
         system_configs = config_data['system']
@@ -429,14 +432,16 @@ def load_covid_detection(covid_detection_input_filepath, covid_detection_date, d
     print('start load raw covid detection records to database...')
 
     # load config data
-    system_configs, database_configs = None, None
-    with open(config_filepath) as config_file:
+    system_configs, database_configs, data_configs = None, None, None
+    with open(config_filepath, encoding='utf8') as config_file:
         config_data = yaml.load(config_file, Loader=SafeLoader)
         database_configs = config_data['database']
         system_configs = config_data['system']
+        data_configs = config_data['data']
 
     # load initial data
     covid_detection = pd.read_excel(covid_detection_input_filepath, header=0)
+    covid_detection = covid_detection[data_configs['covid_detection_records']['input_cloumn_names']]
     print('load raw covid detection finished! time = {}'.format(time.time() - start_time))
     log.write('load raw covid detection finished! time = {}\n'.format(time.time() - start_time))
 
@@ -446,10 +451,11 @@ def load_covid_detection(covid_detection_input_filepath, covid_detection_date, d
     log.write('clean data finished! time = {}\n'.format(time.time() - start_time))
 
     # output file
-    covid_detection = covid_detection[
-        ['姓名', '出生日期', '年龄', '电话号码', '机构所在地', '采样机构', '采样时间', '检测机构', '检测时间', '检测结果', '检测结果填报时间', '复核结果', '复核机构',
-         '复核时间', '性别', '国家/地区', '居住地', '证件类型', '证件号码', '未提供有效证件原因', '检测人群分类', '应检尽检类别', '导入机构', '样本条形码', '样本类型', '检测项目',
-         '采样点行政区划', '采样地点', '所在学校/单位名称', '备注1', '备注2', '采集类型', '导入时间', '创建人账号', '创建人姓名']]
+    covid_detection.columns = ['姓名', '出生日期', '年龄', '电话号码', '机构所在地', '采样机构', '采样时间', '检测机构', '检测时间', '检测结果', '检测结果填报时间',
+                               '复核结果', '复核机构', '复核时间', '性别', '国家/地区', '居住地', '证件类型', '证件号码', '未提供有效证件原因', '检测人群分类',
+                               '应检尽检类别', '导入机构',
+                               '样本条形码', '样本类型', '检测项目', '采样点行政区划', '采样地点', '所在学校/单位名称', '备注1', '备注2', '采集类型', '导入时间',
+                               '创建人账号', '创建人姓名']
     covid_detection_out_file_name = 'covid_detection.csv'
     covid_detection.to_csv(covid_detection_out_file_name, header=True, index=False, encoding='utf-8')
     print('output csv finished! time =', time.time() - start_time)
@@ -522,7 +528,7 @@ def load_return_list(return_list_input_filepath, return_list_date, db):
 
     # load config data
     system_configs, database_configs = None, None
-    with open(config_filepath) as config_file:
+    with open(config_filepath, encoding='utf8') as config_file:
         config_data = yaml.load(config_file, Loader=SafeLoader)
         database_configs = config_data['database']
         system_configs = config_data['system']
